@@ -2,17 +2,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int yylex(void);
+void yyerror(char *);
+
 // Declare tokens from Lex
 %}
 
-%token BREAK CHAR CONTINUE ELSE FOR IF INT SHORT RETURN VOID WHILE
-%token IDENTIFIER CONSTANT STRING_LITERAL
-%token ADD_OP SUB_OP MUL_OP DIV_OP MOD_OP
-%token INC_OP DEC_OP
+%token _COMMENT BREAK CHAR CONTINUE ELSE FOR IF INT SHORT RETURN VOID WHILE CONSTANT IDENTIFIER STRING_LITERAL
+%token ADD_OP SUB_OP MUL_OP DIV_OP MOD_OP INC_OP DEC_OP
 %token LE_OP GE_OP EQ_OP NE_OP LT_OP GT_OP
-%token AND_OP OR_OP NOT_OP
-%token SEMICOLON LBRACE RBRACE LPAREN RPAREN LBRACKET RBRACKET
-%token COMMA COLON ASSIGN_OP
+%token AND_OP OR_OP NOT_OP DOLLAR RIGHT_OP LEFT_OP
+%token SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN_OP
+%token LPAREN RPAREN LBRACKET RBRACKET DOT BITAND_OP BITINV_OP BITXOR BITOR
+%token _UNMATCH
 
 %left NO_ELSE
 %left ELSE
@@ -37,8 +39,8 @@ declarations:
 
 declaration:
       type_specifier IDENTIFIER SEMICOLON
-    | type_specifier IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON
-    | type_specifier IDENTIFIER LPAREN param_list RPAREN compound_stmt
+    | type_specifier array SEMICOLON
+    | type_specifier IDENTIFIER LPAREN param_list RPAREN LBRACE statements RBRACE
     ;
 
 type_specifier:
@@ -48,13 +50,13 @@ type_specifier:
     | VOID
     ;
 
+array:
+      IDENTIFIER LBRACKET CONSTANT RBRACKET
+    ;
+
 param_list:
     | param_list COMMA type_specifier IDENTIFIER
     | type_specifier IDENTIFIER
-    ;
-
-compound_stmt:
-      LBRACE statements RBRACE
     ;
 
 statements:
@@ -63,13 +65,14 @@ statements:
 
 statement:
       expression_stmt
-    | compound_stmt
+    | LBRACE statements RBRACE
     | if_stmt
     | while_stmt
     | return_stmt
     | break_stmt
     | continue_stmt
     | for_stmt
+    | declaration
     ;
 
 expression_stmt:
@@ -104,41 +107,44 @@ for_stmt:
     ;
 
 expression:
-      IDENTIFIER ASSIGN_OP expression
-    | simple_expr
-    ;
-
-simple_expr:
-    ADD_OP simple_expr %prec UPLUS
-    | SUB_OP simple_expr %prec UMINUS
-    | INC_OP simple_expr
-    | simple_expr INC_OP
-    | DEC_OP simple_expr
-    | simple_expr DEC_OP
-    | NOT_OP simple_expr
-    | simple_expr MUL_OP simple_expr
-    | simple_expr DIV_OP simple_expr
-    | simple_expr MOD_OP simple_expr
-    | simple_expr ADD_OP simple_expr
-    | simple_expr SUB_OP simple_expr
-    | simple_expr GT_OP simple_expr
-    | simple_expr LT_OP simple_expr
-    | simple_expr GE_OP simple_expr
-    | simple_expr LE_OP simple_expr
-    | simple_expr EQ_OP simple_expr
-    | simple_expr NE_OP simple_expr
-    | simple_expr AND_OP simple_expr
-    | simple_expr OR_OP simple_expr
+    IDENTIFIER ASSIGN_OP expression
+    | array ASSIGN_OP expression
+    | ADD_OP expression %prec UPLUS
+    | SUB_OP expression %prec UMINUS
+    | INC_OP expression
+    | expression INC_OP
+    | DEC_OP expression
+    | expression DEC_OP
+    | NOT_OP expression
+    | expression MUL_OP expression    { printf("multiply\n"); }
+    | expression DIV_OP expression
+    | expression MOD_OP expression
+    | expression ADD_OP expression
+    | expression SUB_OP expression
+    | expression GT_OP expression
+    | expression LT_OP expression
+    | expression GE_OP expression
+    | expression LE_OP expression
+    | expression EQ_OP expression
+    | expression NE_OP expression
+    | expression AND_OP expression
+    | expression OR_OP expression
+    | LPAREN expression RPAREN
     | IDENTIFIER
+    | array
     | CONSTANT
     ;
     
 
 %%
-int main() {
-    return yyparse();
+void yyerror(char *str){
+    fprintf(stderr,"error:%s\n",str);
 }
 
-void yyerror(const char *s) {
-    fprintf(stderr, "Error: %s\n", s);
+int yywrap(){
+    return 1;
+}
+int main()
+{
+    yyparse();
 }

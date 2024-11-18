@@ -3,7 +3,7 @@ L			[a-zA-Z_]
 H           0x([a-zA-Z0-9])+
 
 %{
-// lex file for minic
+#include "minic.tab.h"
 %}
 
 %%
@@ -32,10 +32,10 @@ H           0x([a-zA-Z0-9])+
 "++"			            { return(INC_OP); }
 "--"			            { return(DEC_OP); }
 
-"<="			            { count(); return(LE_OP); }
-">="			            { count(); return(GE_OP); }
-"=="			            { count(); return(EQ_OP); }
-"!="			            { count(); return(NE_OP); }
+"<="			            { return(LE_OP); }
+">="			            { return(GE_OP); }
+"=="			            { return(EQ_OP); }
+"!="			            { return(NE_OP); }
 "<"			        	    { return(LT_OP); }
 ">"			        	    { return(GT_OP); }
 
@@ -62,8 +62,6 @@ H           0x([a-zA-Z0-9])+
 "~"			        	    { return(BITINV_OP); }
 "^"			        	    { return(BITXOR); }
 "|"			        	    { return(BITOR); }
-[ \t\v\n\f]                 { return (_WHITESPACE); }
+[ \t\v\n\f]                 { /* ignore whitespaces */ }
 .			 	 	        { return(_UNMATCH); }
 %%
-
-
