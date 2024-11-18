@@ -7,7 +7,7 @@ H           0x([a-zA-Z0-9])+
 %}
 
 %%
-"//"(.*)(\n)?               { return(_COMMENT); }
+"//"(.*)(\n)?               { /* ignore comments */ }
 "break"			            { return(BREAK); }
 "char"                      { return(CHAR); }
 "continue"	                { return(CONTINUE); }
@@ -43,10 +43,14 @@ H           0x([a-zA-Z0-9])+
 "||"			            { return(OR_OP); }
 "!"			        	    { return(NOT_OP); }
 
-"$"                         { return(DOLLAR); }
-
+"$"                         { return(ADDR_OP); }
 ">>"			            { return(RIGHT_OP); }
 "<<"			            { return(LEFT_OP); }
+"&"			        	    { return(BITAND_OP); }
+"~"			        	    { return(BITINV_OP); }
+"^"			        	    { return(BITXOR_OP); }
+"|"			        	    { return(BITOR_OP); }
+
 ";"		        		    { return(SEMICOLON); }
 "{"	            	        { return(LBRACE); }
 "}"	          		        { return(RBRACE); }
@@ -58,10 +62,6 @@ H           0x([a-zA-Z0-9])+
 "["			                { return(LBRACKET); }
 "]"	  	        	        { return(RBRACKET); }
 "."			        	    { return(DOT); }
-"&"			        	    { return(BITAND_OP); }
-"~"			        	    { return(BITINV_OP); }
-"^"			        	    { return(BITXOR); }
-"|"			        	    { return(BITOR); }
 [ \t\v\n\f]                 { /* ignore whitespaces */ }
 .			 	 	        { return(_UNMATCH); }
 %%
