@@ -1,6 +1,6 @@
 D			[0-9]
 L			[a-zA-Z_]
-H           0x([a-zA-Z0-9])+
+H           0[xX][a-fA-F0-9]+
 
 %{
 #include "minic.tab.h"
@@ -19,10 +19,11 @@ H           0x([a-zA-Z0-9])+
 "return"		            { return(RETURN); }
 "void"			            { return(VOID); }
 "while"			            { return(WHILE); }
-{H}                         { return(CONSTANT); }
-{L}({L}|{D})*		        { return(IDENTIFIER); }
-0|([1-9]{D}*)				{ return(CONSTANT); }
-\"(\\.|[^\\"\n])*\"         { return(STRING_LITERAL); }
+{H}                         { yylval.int_val = atoi(yytext); return(CONSTANT); }
+{L}({L}|{D})*		        { yylval.str_val = _strdup(yytext); return(IDENTIFIER); }
+0|([1-9]{D}*)				{ yylval.int_val = atoi(yytext); return(CONSTANT); }
+'\\.'|'[^\\']'              { yylval.int_val = atoi(yytext); return(CONSTANT); }
+\"(\\.|[^\\"\n])*\"         { yylval.str_val = _strdup(yytext); return(STRING_LITERAL); }
 
 "+"			        	    { return(ADD_OP); }
 "-"			        	    { return(SUB_OP); }
