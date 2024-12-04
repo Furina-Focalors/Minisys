@@ -20,6 +20,7 @@ ASTNode* createASTNode(char* id, int childNum, ...) {
         for (int i=0;i<childNum;++i) {
             cur->children[i] = va_arg(children, ASTNode*);
         }
+        va_end(children);
     }
 
     return cur;
