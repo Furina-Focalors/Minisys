@@ -2,235 +2,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct SymbolTableEntry {
-    char* id;
-    /* type supports int, char, short and void.
-     * for array variables, this is the type of its elements;
-     * for functions, this is the type for its return value.
-     */
-    char* type;
-    unsigned long long memloc;
-    /*
-     * for single and array variables, this is the bytes it takes up;
-     * for functions, this is invalid
-     */
-    unsigned int size;
-    int isInitialized; // =1 if initialized
-    int isArray; // =1 if is array
-    // function info
-    int isFunction; // =1 if is function
-    int isDefined;
-    unsigned int stackFrameSize;
-    int paramNum;
-    char** parameters; // type of each of its parameters
-} SymbolTableEntry;
-
-typedef struct HashNode {
-    SymbolTableEntry* entry;
-    struct HashNode* next;
-} HashNode;
-
-#define SYMBOL_TABLE_SIZE 64
-typedef struct SymbolTable {
-    HashNode* table[SYMBOL_TABLE_SIZE];
-    // parent points to the outer scope for this table
-    struct SymbolTable* parent;
-} SymbolTable;
-
-unsigned int hash(char* str) {
-    unsigned int hash = 0;
-    while (*str) {
-        hash = (hash << 5) + *str;
-        str++;
-    }
-    return hash % SYMBOL_TABLE_SIZE;
-}
-
-SymbolTable* createSymbolTable(SymbolTable* parent) {
-    SymbolTable* symbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
-    if (!symbolTable) {
-        fprintf(stderr, "Failed to allocate memory for symbol table.\n");
-        return NULL;
-    }
-    for (int i = 0; i < SYMBOL_TABLE_SIZE; i++) {
-        symbolTable->table[i] = NULL;
-    }
-    symbolTable->parent = parent;
-    return symbolTable;
-}
-
-SymbolTableEntry* createSymbolTableEntry(char* id, char* type, unsigned long long memloc,
-                                          unsigned int size, int isInitialized,
-                                          int isArray, int isFunction, int isDefined,
-                                          unsigned int stackFrameSize, int paramNum, char** parameters) {
-    SymbolTableEntry* entry = (SymbolTableEntry*)malloc(sizeof(SymbolTableEntry));
-    if (!entry) {
-        fprintf(stderr, "Failed to allocate memory for symbol table entry.\n");
-        return NULL;
-    }
-    entry->id = strdup(id);
-    entry->type = strdup(type);
-    entry->memloc = memloc;
-    entry->size = size;
-    entry->isInitialized = isInitialized;
-    entry->isArray = isArray;
-    entry->isFunction = isFunction;
-    entry->isDefined = isDefined;
-    entry->stackFrameSize = stackFrameSize;
-    entry->paramNum = paramNum;
-    entry->parameters = parameters;
-    return entry;
-}
-
-void insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
-    unsigned int index = hash(entry->id);
-    HashNode* newNode = (HashNode*)malloc(sizeof(HashNode));
-    if (!newNode) {
-        fprintf(stderr, "Failed to allocate memory for hash node.\n");
-        return;
-    }
-    newNode->entry = entry;
-    newNode->next = symbolTable->table[index]; // this is for conflict handling
-    symbolTable->table[index] = newNode;
-}
-
-SymbolTableEntry* findSymbol(SymbolTable* symbolTable, char* id) {
-    unsigned int index = hash(id);
-    HashNode* node = symbolTable->table[index];
-    while (node) {
-        if (strcmp(node->entry->id, id) == 0) {
-            return node->entry;
-        }
-        node = node->next;
-    }
-    // recursively find symbol in outer scopes
-    if (symbolTable->parent != NULL) {
-        return findSymbol(symbolTable->parent, id);
-    }
-
-    return NULL;
-}
-
-void deleteSymbol(SymbolTable* symbolTable, char* id) {
-    unsigned int index = hash(id);
-    HashNode* node = symbolTable->table[index];
-    HashNode* prev = NULL;
-    while (node) {
-        if (strcmp(node->entry->id, id) == 0) {
-            if (prev) {
-                prev->next = node->next;
-            } else {
-                symbolTable->table[index] = node->next;
-            }
-            free(node->entry->id);
-            free(node->entry->type);
-            free(node->entry);
-            free(node);
-            return;
-        }
-        prev = node;
-        node = node->next;
-    }
-}
-
-void destroySymbolTable(SymbolTable* symbolTable) {
-    for (int i = 0; i < SYMBOL_TABLE_SIZE; i++) {
-        HashNode* node = symbolTable->table[i];
-        while (node) {
-            HashNode* temp = node;
-            node = node->next;
-            free(temp->entry->id);
-            free(temp->entry->type);
-            free(temp->entry);
-            free(temp);
-        }
-    }
-    free(symbolTable);
-}
-
-
-
-void printSymbolTableEntry(SymbolTableEntry* entry) {
-    if (entry) {
-        printf("ID: %s\n", entry->id);
-        printf("Type: %s\n", entry->type);
-        printf("Memory Location: %llu\n", entry->memloc);
-        printf("Size: %u\n", entry->size);
-        printf("Is Initialized: %d\n", entry->isInitialized);
-        printf("Is Array: %d\n", entry->isArray);
-        printf("Is Function: %d\n", entry->isFunction);
-        printf("Is Defined: %d\n", entry->isDefined);
-        printf("Stack Frame Size: %u\n", entry->stackFrameSize);
-        printf("Param Num: %d\n", entry->paramNum);
-        if (entry->parameters) {
-            printf("Parameters: ");
-            for (int i = 0; i < entry->paramNum; ++i) {
-                printf("%s ", entry->parameters[i]);
-            }
-            printf("\n");
-        }
-    } else {
-        printf("entry is NULL.\n");
-    }
-}
-
-void printSymbolTable(SymbolTable* symbolTable) {
-    printf("Table content:\n");
-    printf("======================================\n");
-    if (symbolTable->parent == NULL) {
-        printf("parent is NULL,\n");
-    } else {
-        printf("parent at %p.\n", (void*)(symbolTable->parent));
-    }
-    printf("------------------------------------------\n");
-    for (int i=0;i<SYMBOL_TABLE_SIZE;++i) {
-        if (symbolTable->table[i] == NULL) continue;
-        HashNode* temp = symbolTable->table[i];
-        while (temp != NULL) {
-            printSymbolTableEntry(temp->entry);
-            printf("------------------------------------------\n");
-            temp = temp->next;
-        }
-    }
-    printf("======================================\n");
-}
-
-
-SymbolTable* currentScope;
+#include "ast.h"
 
 int yylex(void);
 void yyerror(char *);
 
-// Declare tokens from Lex
+ASTNode* root = NULL;
 %}
 
 %union {
-    int int_val;
-    char* str_val;
-    struct {
-        char* id;
-        char* type;
-        unsigned int offset;
-    } arr_val;
-    struct {
-        char* type;
-        unsigned int size;
-    } type_spec_val;
+    ASTNode* node;
 }
 
-%token <int_val> CONSTANT
-%token <str_val> IDENTIFIER STRING_LITERAL
-%token _COMMENT BREAK CONTINUE ELSE FOR IF RETURN WHILE CHAR INT SHORT VOID
-%token ADD_OP SUB_OP MUL_OP DIV_OP MOD_OP INC_OP DEC_OP
-%token LE_OP GE_OP EQ_OP NE_OP LT_OP GT_OP
-%token AND_OP OR_OP NOT_OP ADDR_OP RIGHT_OP LEFT_OP
-%token SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN_OP
-%token LPAREN RPAREN LBRACKET RBRACKET DOT BITAND_OP BITINV_OP BITXOR_OP BITOR_OP
+%token <node> INT_CONSTANT CHAR_CONSTANT
+%token <node> IDENTIFIER STRING_LITERAL
+%token <node> _COMMENT BREAK CONTINUE ELSE FOR IF RETURN WHILE CHAR INT SHORT VOID
+%token <node> ADD_OP SUB_OP MUL_OP DIV_OP MOD_OP INC_OP DEC_OP
+%token <node> LE_OP GE_OP EQ_OP NE_OP LT_OP GT_OP
+%token <node> AND_OP OR_OP NOT_OP ADDR_OP RIGHT_OP LEFT_OP
+%token <node> SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN_OP
+%token <node> LPAREN RPAREN LBRACKET RBRACKET DOT BITAND_OP BITINV_OP BITXOR_OP BITOR_OP
 %token _UNMATCH
 
-%type <type_spec_val> type_specifier
-%type <arr_val> array
+%type <node> program declarations declaration type_specifier param_list array func_call arg_list
+%type <node> statements statement if_stmt for_stmt break_stmt while_stmt return_stmt continue_stmt expression_stmt expression
 
 %left NO_ELSE
 %left ELSE
@@ -250,150 +45,166 @@ void yyerror(char *);
 
 %%
 program:
-    declarations
+    declarations                   {
+        // this will NOT be executed until yyparse() terminated
+        $$ = createASTNode("PROGRAM", 1, $1);
+        preorderPrint($$);
+        }
     ;
 
 declarations:
-    | declarations declaration
+                                    { $$ = NULL; }
+    | declarations declaration      { $$ = createASTNode("DECLARATIONS", 2, $1, $2); }
     ;
 
 declaration:
-      type_specifier IDENTIFIER SEMICOLON           {
-                                                        if (findSymbol(currentScope, $2) != NULL) {
-                                                            yyerror("redefinition of identifier.");
-                                                            YYERROR;
-                                                        }
-                                                        SymbolTableEntry* temp = createSymbolTableEntry($2,$1.type,1013,$1.size,0,0,0,0,0,0,NULL);
-                                                        insertSymbol(currentScope,temp); printSymbolTable(currentScope);
-                                                    }
-    | type_specifier array SEMICOLON                {
-                                                        if (findSymbol(currentScope, $2.id) != NULL) {
-                                                            yyerror("redefinition of identifier.");
-                                                            YYERROR;
-                                                        }
-                                                        SymbolTableEntry* temp = createSymbolTableEntry($2.id,$1.type,1014,$1.size*$2.offset,0,1,0,0,0,0,NULL);
-                                                        insertSymbol(currentScope,temp); printSymbolTable(currentScope);
-                                                    }
-    | type_specifier IDENTIFIER LPAREN param_list RPAREN SEMICOLON
-    | type_specifier IDENTIFIER LPAREN param_list RPAREN LBRACE statements RBRACE
-    | type_specifier IDENTIFIER LPAREN VOID RPAREN SEMICOLON
-    | type_specifier IDENTIFIER LPAREN VOID RPAREN LBRACE statements RBRACE
+      type_specifier IDENTIFIER SEMICOLON   {
+        $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
+      }
+    | type_specifier array SEMICOLON    {
+        $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
+    }
+    | type_specifier IDENTIFIER LPAREN param_list RPAREN SEMICOLON  {
+        $$ = createASTNode("DECLARATION", 6, $1, $2, $3, $4, $5, $6);
+    }
+    | type_specifier IDENTIFIER LPAREN param_list RPAREN LBRACE statements RBRACE   {
+        $$ = createASTNode("DECLARATION", 8, $1, $2, $3, $4, $5, $6, $7, $8);
+    }
+    | type_specifier IDENTIFIER LPAREN VOID RPAREN SEMICOLON    {
+        $$ = createASTNode("DECLARATION", 6, $1, $2, $3, $4, $5, $6);
+    }
+    | type_specifier IDENTIFIER LPAREN VOID RPAREN LBRACE statements RBRACE {
+        $$ = createASTNode("DECLARATION", 8, $1, $2, $3, $4, $5, $6, $7, $8);
+    }
     ;
 
 type_specifier:
-      CHAR      { $$.type = strdup("char"); $$.size = 1; }
-    | INT       { $$.type = strdup("int"); $$.size = 4; }
-    | SHORT     { $$.type = strdup("short"); $$.size = 2; }
-    | VOID      { $$.type = strdup("void"); $$.size = 0; }
+      CHAR      { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
+    | INT       { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
+    | SHORT     { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
+    | VOID      { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
     ;
 
 param_list:
-    | param_list COMMA type_specifier IDENTIFIER
-    | type_specifier IDENTIFIER
+                                                    { $$ = NULL; }
+    | param_list COMMA type_specifier IDENTIFIER    { $$ = createASTNode("PARAM_LIST", 4, $1, $2, $3, $4); }
+    | type_specifier IDENTIFIER                     { $$ = createASTNode("PARAM_LIST", 2, $1, $2); }
     ;
 
 array:
-      IDENTIFIER LBRACKET CONSTANT RBRACKET       { strcpy($$.id, $1); $$.offset = $3; }
+      IDENTIFIER LBRACKET INT_CONSTANT RBRACKET     { $$ = createASTNode("ARRAY", 4, $1, $2, $3, $4); }
     ;
 
 func_call:
-    IDENTIFIER LPAREN arg_list RPAREN
+    IDENTIFIER LPAREN arg_list RPAREN               { $$ = createASTNode("FUNC_CALL", 4, $1, $2, $3, $4); }
     ;
 
 arg_list:
-    | arg_list COMMA expression
-    | expression
+                                    { $$ = NULL; }
+    | arg_list COMMA expression     { $$ = createASTNode("ARG_LIST", 3, $1, $2, $3); }
+    | expression                    { $$ = createASTNode("ARG_LIST", 1, $1); }
     ;
 
 statements:
-    | statements statement
+                                    { $$ = NULL; }
+    | statements statement          { $$ = createASTNode("STATEMENTS", 2, $1, $2); }
     ;
 
 statement:
-      expression_stmt
-    | LBRACE statements RBRACE
-    | if_stmt
-    | while_stmt
-    | return_stmt
-    | break_stmt
-    | continue_stmt
-    | for_stmt
-    | declaration
+      expression_stmt               { $$ = createASTNode("STATEMENT", 1, $1); }
+    | LBRACE statements RBRACE      { $$ = createASTNode("STATEMENT", 3, $1, $2, $3); }
+    | if_stmt                       { $$ = createASTNode("STATEMENT", 1, $1); }
+    | while_stmt                    { $$ = createASTNode("STATEMENT", 1, $1); }
+    | return_stmt                   { $$ = createASTNode("STATEMENT", 1, $1); }
+    | break_stmt                    { $$ = createASTNode("STATEMENT", 1, $1); }
+    | continue_stmt                 { $$ = createASTNode("STATEMENT", 1, $1); }
+    | for_stmt                      { $$ = createASTNode("STATEMENT", 1, $1); }
+    | declaration                   { $$ = createASTNode("STATEMENT", 1, $1); }
     ;
 
 expression_stmt:
-    IDENTIFIER ASSIGN_OP expression SEMICOLON
-    | array ASSIGN_OP expression SEMICOLON
-    | ADDR_OP expression ASSIGN_OP expression SEMICOLON
-    | expression SEMICOLON
-    | SEMICOLON
+    IDENTIFIER ASSIGN_OP expression SEMICOLON               { $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4); }
+    | array ASSIGN_OP expression SEMICOLON                  { $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4); }
+    | ADDR_OP expression ASSIGN_OP expression SEMICOLON     { $$ = createASTNode("EXPR_STMT", 5, $1, $2, $3, $4, $5); }
+    | expression SEMICOLON                                  { $$ = createASTNode("EXPR_STMT", 2, $1, $2); }
+    | SEMICOLON                                             { $$ = createASTNode("EXPR_STMT", 1, $1); }
     ;
 
 if_stmt:
-      IF LPAREN expression RPAREN statement %prec NO_ELSE
-    | IF LPAREN expression RPAREN statement ELSE statement
+      IF LPAREN expression RPAREN statement %prec NO_ELSE   {
+        $$ = createASTNode("IF_STMT", 5, $1, $2, $3, $4, $5);
+      }
+    | IF LPAREN expression RPAREN statement ELSE statement  {
+        $$ = createASTNode("IF_STMT", 7, $1, $2, $3, $4, $5, $6, $7);
+    }
     ;
 
 while_stmt:
-      WHILE LPAREN expression RPAREN statement
+      WHILE LPAREN expression RPAREN statement  {
+        $$ = createASTNode("WHILE_STMT", 5, $1, $2, $3, $4, $5);
+      }
     ;
 
 return_stmt:
-      RETURN expression SEMICOLON
-    | RETURN SEMICOLON
+      RETURN expression SEMICOLON       { $$ = createASTNode("RETURN_STMT", 3, $1, $2, $3); }
+    | RETURN SEMICOLON                  { $$ = createASTNode("RETURN_STMT", 2, $1, $2); }
     ;
 
 break_stmt:
-      BREAK SEMICOLON
+      BREAK SEMICOLON                   { $$ = createASTNode("BREAK_STMT", 2, $1, $2); }
     ;
 
 continue_stmt:
-      CONTINUE SEMICOLON
+      CONTINUE SEMICOLON                { $$ = createASTNode("CONTINUE_STMT", 2, $1, $2); }
     ;
 
 for_stmt:
-      FOR LPAREN expression_stmt expression_stmt expression RPAREN statement
+      FOR LPAREN expression_stmt expression_stmt expression RPAREN statement {
+        $$ = createASTNode("FOR_STMT", 7, $1, $2, $3, $4, $5, $6, $7);
+      }
     ;
 
 expression:
-    ADD_OP expression %prec UPLUS
-    | SUB_OP expression %prec UMINUS
-    | INC_OP IDENTIFIER
-    | IDENTIFIER INC_OP
-    | DEC_OP IDENTIFIER
-    | IDENTIFIER DEC_OP
-    | INC_OP array
-    | array INC_OP
-    | DEC_OP array
-    | array DEC_OP
-    | NOT_OP expression
-    | BITINV_OP expression
-    | ADDR_OP expression
-    | expression MUL_OP expression
-    | expression DIV_OP expression
-    | expression MOD_OP expression
-    | expression ADD_OP expression
-    | expression SUB_OP expression
-    | IDENTIFIER LEFT_OP expression
-    | IDENTIFIER RIGHT_OP expression
-    | array LEFT_OP expression
-    | array RIGHT_OP expression
-    | expression GT_OP expression
-    | expression LT_OP expression
-    | expression GE_OP expression
-    | expression LE_OP expression
-    | expression EQ_OP expression
-    | expression NE_OP expression
-    | expression BITAND_OP expression
-    | expression BITXOR_OP expression
-    | expression BITOR_OP expression
-    | expression AND_OP expression
-    | expression OR_OP expression
-    | LPAREN expression RPAREN
-    | IDENTIFIER
-    | array
-    | func_call
-    | CONSTANT
+    ADD_OP expression %prec UPLUS           { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | SUB_OP expression %prec UMINUS        { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | INC_OP IDENTIFIER                     { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | IDENTIFIER INC_OP                     { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | DEC_OP IDENTIFIER                     { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | IDENTIFIER DEC_OP                     { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | INC_OP array                          { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | array INC_OP                          { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | DEC_OP array                          { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | array DEC_OP                          { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | NOT_OP expression                     { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | BITINV_OP expression                  { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | ADDR_OP expression                    { $$ = createASTNode("EXPR", 2, $1, $2); }
+    | expression MUL_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression DIV_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression MOD_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression ADD_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression SUB_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | IDENTIFIER LEFT_OP expression         { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | IDENTIFIER RIGHT_OP expression        { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | array LEFT_OP expression              { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | array RIGHT_OP expression             { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression GT_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression LT_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression GE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression LE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression EQ_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression NE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression BITAND_OP expression       { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression BITXOR_OP expression       { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression BITOR_OP expression        { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression AND_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | expression OR_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | LPAREN expression RPAREN              { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
+    | IDENTIFIER                            { $$ = createASTNode("EXPR", 1, $1); }
+    | array                                 { $$ = createASTNode("EXPR", 1, $1); }
+    | func_call                             { $$ = createASTNode("EXPR", 1, $1); }
+    | INT_CONSTANT                          { $$ = createASTNode("EXPR", 1, $1); }
+    | CHAR_CONSTANT                         { $$ = createASTNode("EXPR", 1, $1); }
+    | STRING_LITERAL                        { $$ = createASTNode("EXPR", 1, $1); }
     ;
     
 
@@ -405,8 +216,11 @@ void yyerror(char *str){
 int yywrap(){
     return 1;
 }
+
+/*
 int main()
 {
-    currentScope = createSymbolTable(NULL); // global symbols
     yyparse();
+    return 0;
 }
+*/
