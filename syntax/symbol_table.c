@@ -1,5 +1,7 @@
 #include "symbol_table.h"
 
+int scopeStackTop = 1;
+
 unsigned int hash(char* str) {
     unsigned int hash = 0;
     while (*str) {
@@ -9,7 +11,7 @@ unsigned int hash(char* str) {
     return hash % SYMBOL_TABLE_SIZE;
 }
 
-SymbolTable* createSymbolTable(SymbolTable* parent) {
+SymbolTable* createSymbolTable() {
     SymbolTable* symbolTable = (SymbolTable*)malloc(sizeof(SymbolTable));
     if (!symbolTable) {
         fprintf(stderr, "Failed to allocate memory for symbol table.\n");
@@ -18,11 +20,10 @@ SymbolTable* createSymbolTable(SymbolTable* parent) {
     for (int i = 0; i < SYMBOL_TABLE_SIZE; i++) {
         symbolTable->table[i] = NULL;
     }
-    symbolTable->parent = parent;
     return symbolTable;
 }
 
-SymbolTableEntry* createSymbolTableEntry(char* id, char* type, unsigned long long memloc,
+SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
                                           unsigned int size, int isInitialized, int isArray,
                                           int isFunction, int isDefined, unsigned int stackFrameSize,
                                           int paramNum, char** paramsType, char** parameters) {
@@ -33,7 +34,6 @@ SymbolTableEntry* createSymbolTableEntry(char* id, char* type, unsigned long lon
     }
     entry->id = strdup(id);
     entry->type = strdup(type);
-    entry->memloc = memloc;
     entry->size = size;
     entry->constType = NON_CONST;
     entry->isInitialized = isInitialized;
@@ -59,34 +59,33 @@ int isDeclared(SymbolTable* symbolTable, char* id) {
     return 0;
 }
 
-void insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
+int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
     if (isDeclared(symbolTable, entry->id) == 1) {
         perror("attempting to redefine symbol.\n");
-        return;
+        return -1;
     }
     unsigned int index = hash(entry->id);
     HashNode* newNode = (HashNode*)malloc(sizeof(HashNode));
     if (!newNode) {
         fprintf(stderr, "Failed to allocate memory for hash node.\n");
-        return;
+        return -1;
     }
     newNode->entry = entry;
     newNode->next = symbolTable->table[index]; // this is for conflict handling
     symbolTable->table[index] = newNode;
+    return 0;
 }
 
-SymbolTableEntry* findSymbolRecur(SymbolTable* symbolTable, char* id) {
+SymbolTableEntry* findSymbol(char* id) {
     unsigned int index = hash(id);
-    HashNode* node = symbolTable->table[index];
-    while (node) {
-        if (strcmp(node->entry->id, id) == 0) {
-            return node->entry;
+    for (int i = scopeStackTop - 1;i >= 0;--i) {
+        HashNode* node = scopeStack[i]->table[index];
+        while (node) {
+            if (strcmp(node->entry->id, id) == 0) {
+                return node->entry;
+            }
+            node = node->next;
         }
-        node = node->next;
-    }
-    // recursively find symbol in outer scopes
-    if (symbolTable->parent != NULL) {
-        return findSymbolRecur(symbolTable->parent, id);
     }
 
     return NULL;
@@ -206,7 +205,6 @@ SymbolTableEntry* createConstTableEntry(enum ConstType type, union ConstValue va
     }
     entry->constType = type;
     entry->constValue = value;
-    entry->memloc = constPoolTop++;
     entry->isInitialized = 1;
     entry->isArray = 0;
     entry->isFunction = 0;
@@ -223,7 +221,6 @@ void printSymbolTableEntry(SymbolTableEntry* entry) {
     if (entry) {
         printf("ID: %s\n", entry->id);
         printf("Type: %s\n", entry->type);
-        printf("Memory Location: %" PRIu64 "\n", entry->memloc);
         printf("Size: %u\n", entry->size);
         switch(entry->constType) {
             case NON_CONST:
@@ -262,12 +259,6 @@ void printSymbolTableEntry(SymbolTableEntry* entry) {
 void printSymbolTable(SymbolTable* symbolTable) {
     printf("Table content:\n");
     printf("======================================\n");
-    if (symbolTable->parent == NULL) {
-        printf("parent is NULL,\n");
-    } else {
-        printf("parent at %p.\n", (void*)(symbolTable->parent));
-    }
-    printf("------------------------------------------\n");
     for (int i=0;i<SYMBOL_TABLE_SIZE;++i) {
         if (symbolTable->table[i] == NULL) continue;
         HashNode* temp = symbolTable->table[i];
@@ -281,111 +272,113 @@ void printSymbolTable(SymbolTable* symbolTable) {
 }
 
 
-int main() {
-    SymbolTable* symbolTable = createSymbolTable(NULL);
-    if (!symbolTable) {
-        return 1;
-    }
+// int main() {
+//     SymbolTable* symbolTable = createSymbolTable(NULL);
+//     if (!symbolTable) {
+//         return 1;
+//     }
+//     scopeStack[scopeStackTop++] = symbolTable;
 
-    union ConstValue val1,val2,val3;
-    val1.intVal = 1013;
-    val2.charVal = 'f';
-    val3.strVal = "iloveyou";
+//     // union ConstValue val1,val2,val3;
+//     // val1.intVal = 1013;
+//     // val2.charVal = 'f';
+//     // val3.strVal = "iloveyou";
 
-    printf("creating entries...\n");
-    SymbolTableEntry* test1 = createConstTableEntry(CONST_INT, val1);
-    SymbolTableEntry* test2 = createConstTableEntry(CONST_CHAR, val2);
-    SymbolTableEntry* test3 = createConstTableEntry(CONST_STRING, val3);
-    printSymbolTableEntry(test1);
-    printSymbolTableEntry(test2);
-    printSymbolTableEntry(test3);
+//     // printf("creating entries...\n");
+//     // SymbolTableEntry* test1 = createConstTableEntry(CONST_INT, val1);
+//     // SymbolTableEntry* test2 = createConstTableEntry(CONST_CHAR, val2);
+//     // SymbolTableEntry* test3 = createConstTableEntry(CONST_STRING, val3);
+//     // printSymbolTableEntry(test1);
+//     // printSymbolTableEntry(test2);
+//     // printSymbolTableEntry(test3);
 
-    printf("inserting entries...\n");
-    insertSymbol(symbolTable, test1);
-    insertSymbol(symbolTable, test2);
-    insertSymbol(symbolTable, test3);
-    // try to insert test3 again
-    insertSymbol(symbolTable, test3);
+//     // printf("inserting entries...\n");
+//     // insertSymbol(symbolTable, test1);
+//     // insertSymbol(symbolTable, test2);
+//     // insertSymbol(symbolTable, test3);
+//     // // try to insert test3 again
+//     // insertSymbol(symbolTable, test3);
 
-    printf("table content:\n");
-    printSymbolTable(symbolTable);
+//     // printf("table content:\n");
+//     // printSymbolTable(symbolTable);
 
-    // char* paramsType1[] = {"int", "char"};
-    // char* params1[] = {"a", "b"};
-    // SymbolTableEntry* varEntry = createSymbolTableEntry("x", "int", 0x1000, 4, 1, 0, 0, 0, 0, 0, NULL, NULL);
-    // insertSymbol(symbolTable, varEntry);
+//     char* paramsType1[] = {"int", "char"};
+//     char* params1[] = {"a", "b"};
+//     SymbolTableEntry* varEntry = createSymbolTableEntry("x", "int", 4, 1, 0, 0, 0, 0, 0, NULL, NULL);
+//     insertSymbol(symbolTable, varEntry);
 
-    // SymbolTableEntry* funcEntry = createSymbolTableEntry("foo", "void", 0x2000, 0, 1, 0, 1, 1, 32, 2, paramsType1, params1);
-    // insertSymbol(symbolTable, funcEntry);
-
-
-    // printf("Searching for 'x':\n");
-    // SymbolTableEntry* foundVar = findSymbolRecur(symbolTable, "x");
-    // printSymbolTableEntry(foundVar);
+//     SymbolTableEntry* funcEntry = createSymbolTableEntry("foo", "void", 0, 1, 0, 1, 1, 32, 2, paramsType1, params1);
+//     insertSymbol(symbolTable, funcEntry);
 
 
-    // printf("\nSearching for 'foo':\n");
-    // SymbolTableEntry* foundFunc = findSymbolRecur(symbolTable, "foo");
-    // printSymbolTableEntry(foundFunc);
+//     printf("Searching for 'x':\n");
+//     SymbolTableEntry* foundVar = findSymbol("x");
+//     printSymbolTableEntry(foundVar);
 
 
-    // printf("creating local scopes...\n");
-    // SymbolTable* subScope1 = createSymbolTable(symbolTable);
-    // if (!subScope1) return 1;
-    // SymbolTableEntry* subVar1 = createSymbolTableEntry("y", "short", 0x3000, 2, 1, 0, 0, 0, 0, 0, NULL, NULL);
-    // insertSymbol(subScope1, subVar1);
-
-    // SymbolTable* subScope2 = createSymbolTable(symbolTable);
-    // if (!subScope2) return 1;
-    // SymbolTableEntry* subVar2 = createSymbolTableEntry("z", "char", 0x4000, 1, 1, 0, 0, 0, 0, 0, NULL, NULL);
-    // insertSymbol(subScope2, subVar2);
+//     printf("\nSearching for 'foo':\n");
+//     SymbolTableEntry* foundFunc = findSymbol("foo");
+//     printSymbolTableEntry(foundFunc);
 
 
-    // printf("check scope:\n");
-    // printf("search for 'x' in subScope1:\n");
-    // SymbolTableEntry* test1 = findSymbolRecur(subScope1, "x");
-    // printSymbolTableEntry(test1);
+//     printf("creating local scopes...\n");
+//     SymbolTable* subScope1 = createSymbolTable(symbolTable);
+//     if (!subScope1) return 1;
+//     SymbolTableEntry* subVar1 = createSymbolTableEntry("y", "short", 2, 1, 0, 0, 0, 0, 0, NULL, NULL);
+//     insertSymbol(subScope1, subVar1);
 
-    // printf("search for 'y' in subScope1:\n");
-    // SymbolTableEntry* test2 = findSymbolRecur(subScope1, "y");
-    // printSymbolTableEntry(test2);
-
-    // printf("search for 'z' in subScope1:\n");
-    // SymbolTableEntry* test3 = findSymbolRecur(subScope1, "z");
-    // printSymbolTableEntry(test3);
-
-    // printf("content of the tables:\n");
-    // printSymbolTable(symbolTable);
-    // printSymbolTable(subScope1);
-    // printSymbolTable(subScope2);
+//     SymbolTable* subScope2 = createSymbolTable(symbolTable);
+//     if (!subScope2) return 1;
+//     SymbolTableEntry* subVar2 = createSymbolTableEntry("z", "char", 1, 1, 0, 0, 0, 0, 0, NULL, NULL);
+//     insertSymbol(subScope2, subVar2);
 
 
-    // printf("\nDeleting 'x'...\n");
-    // deleteSymbol(symbolTable, "x");
+//     printf("check scope:\n");
+//     printf("search for 'x' in subScope1:\n");
+//     SymbolTableEntry* test1 = findSymbol("x");
+//     printSymbolTableEntry(test1);
 
-    // printf("\nSearching for 'x' after deletion:\n");
-    // SymbolTableEntry* deletedVar = findSymbolRecur(symbolTable, "x");
-    // if (deletedVar) {
-    //     printSymbolTableEntry(deletedVar);
-    // } else {
-    //     printf("Symbol 'x' not found.\n");
-    // }
+//     printf("search for 'y' in subScope1:\n");
+//     SymbolTableEntry* test2 = findSymbol("y");
+//     printSymbolTableEntry(test2);
 
+//     printf("search for 'z' in subScope1:\n");
+//     SymbolTableEntry* test3 = findSymbol("z");
+//     printSymbolTableEntry(test3);
 
-    // printf("\nDeleting 'foo'...\n");
-    // deleteSymbol(symbolTable, "foo");
-
-    // printf("\nSearching for 'foo' after deletion:\n");
-    // SymbolTableEntry* deletedFunc = findSymbolRecur(symbolTable, "foo");
-    // if (deletedFunc) {
-    //     printSymbolTableEntry(deletedFunc);
-    // } else {
-    //     printf("Symbol 'foo' not found.\n");
-    // }
+//     printf("content of the tables:\n");
+//     printSymbolTable(symbolTable);
+//     printSymbolTable(subScope1);
+//     printSymbolTable(subScope2);
 
 
-    // printf("\nDestroying symbol table...\n");
-    // destroySymbolTable(symbolTable);
+//     printf("\nDeleting 'x'...\n");
+//     deleteSymbol(symbolTable, "x");
 
-    return 0;
-}
+//     printf("\nSearching for 'x' after deletion:\n");
+//     SymbolTableEntry* deletedVar = findSymbol("x");
+//     if (deletedVar) {
+//         printSymbolTableEntry(deletedVar);
+//     } else {
+//         printf("Symbol 'x' not found.\n");
+//     }
+
+
+//     printf("\nDeleting 'foo'...\n");
+//     deleteSymbol(symbolTable, "foo");
+
+//     printf("\nSearching for 'foo' after deletion:\n");
+//     SymbolTableEntry* deletedFunc = findSymbol("foo");
+//     if (deletedFunc) {
+//         printSymbolTableEntry(deletedFunc);
+//     } else {
+//         printf("Symbol 'foo' not found.\n");
+//     }
+
+
+//     printf("\nDestroying symbol table...\n");
+//     destroySymbolTable(symbolTable);
+//     printf("Complete.\n");
+
+//     return 0;
+// }

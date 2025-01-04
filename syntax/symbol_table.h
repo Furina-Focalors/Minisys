@@ -27,7 +27,6 @@ typedef struct SymbolTableEntry {
      * for functions, this is the type for its return value.
      */
     char* type;
-    unsigned long long memloc;
     /*
      * for single and array variables, this is the bytes it takes up;
      * for functions, this is invalid
@@ -54,26 +53,24 @@ typedef struct HashNode {
 #define SYMBOL_TABLE_SIZE 64
 typedef struct SymbolTable {
     HashNode* table[SYMBOL_TABLE_SIZE];
-    // parent points to the outer scope for this table
-    struct SymbolTable* parent;
 } SymbolTable;
 
 unsigned int hash(char* str);
 
-SymbolTable* createSymbolTable(SymbolTable* parent);
+SymbolTable* createSymbolTable();
 
-SymbolTableEntry* createSymbolTableEntry(char* id, char* type, unsigned long long memloc,
+SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
                                           unsigned int size, int isInitialized, int isArray,
                                           int isFunction, int isDefined, unsigned int stackFrameSize,
                                           int paramNum, char** paramsType, char** parameters);
 
-void insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry);
+int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry);
 
 // used to check redefinition
 int isDeclared(SymbolTable* symbolTable, char* id);
 
-// this will recursively find the identifier in itself and its parents
-SymbolTableEntry* findSymbolRecur(SymbolTable* symbolTable, char* id);
+// this will find the identifier in itself and the symbol tables of the outer scopes
+SymbolTableEntry* findSymbol(char* id);
 
 void deleteSymbol(SymbolTable* symbolTable, char* id);
 
@@ -86,6 +83,11 @@ void printSymbolTableEntry(SymbolTableEntry* entry);
 
 void printSymbolTable(SymbolTable* symbolTable);
 
-unsigned long long constPoolTop = 0; // address for constants, but it actually does nothing
-unsigned long long symbolTableAddrTop = 0; // the first empty address for symbol table, actually does nothing
+// the stack of symbol tables. when a new scope is entered, its symbol table will be pushed
+// into this stack, and when leaving the scope, the table will be popped. the program will
+// search the symbol tables from top to bottom to check whether a variable is declared.
+// scopeStack[0] is the global symbol table and will be created before yyparse().
+#define SYMBOL_TABLE_STACK_SIZE 256
+SymbolTable *scopeStack[SYMBOL_TABLE_STACK_SIZE];
+extern int scopeStackTop;
 #endif

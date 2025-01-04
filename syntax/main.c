@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "symbol_table.h"
 
 extern FILE *yyin;
 extern int yyparse();
@@ -14,6 +15,12 @@ int main(int argc, char *argv[]) {
     if (!yyin) {
         perror("Error opening file");
         return 1;
+    }
+
+    // initialize scopeStack
+    scopeStack[0] = createSymbolTable();
+    for (int i=1;i<SYMBOL_TABLE_STACK_SIZE;++i) {
+        scopeStack[i] = NULL;
     }
 
     yyparse();

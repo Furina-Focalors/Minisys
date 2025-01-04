@@ -16,7 +16,7 @@ typedef struct ASTNode {
     int childNum;
     char* id;
     union {
-        int int_val;
+        int int_val;    // size of a certain type will also be stored here
         char char_val;
         char* str_val;
     }; // the value of CONSTANTS
