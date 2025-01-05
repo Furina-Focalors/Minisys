@@ -20,6 +20,14 @@ union ConstValue {
     char* strVal;
 };
 
+// struct for parsing parameters to functions
+typedef struct FuncParam {
+    char* id;
+    char* type;
+    unsigned int size;
+    int isArray;
+} FuncParam;
+
 typedef struct SymbolTableEntry {
     char* id;
     /* type supports int, char, short and void.
@@ -41,8 +49,9 @@ typedef struct SymbolTableEntry {
     int isDefined;
     unsigned int stackFrameSize;
     int paramNum;
-    char** paramsType;
-    char** parameters;
+    // char** paramsType;
+    // char** parameters;
+    FuncParam** params;
 } SymbolTableEntry;
 
 typedef struct HashNode {
@@ -62,7 +71,7 @@ SymbolTable* createSymbolTable();
 SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
                                           unsigned int size, int isInitialized, int isArray,
                                           int isFunction, int isDefined, unsigned int stackFrameSize,
-                                          int paramNum, char** paramsType, char** parameters);
+                                          int paramNum, FuncParam** params);
 
 int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry);
 
@@ -82,6 +91,8 @@ SymbolTableEntry* createConstTableEntry(enum ConstType type, union ConstValue va
 void printSymbolTableEntry(SymbolTableEntry* entry);
 
 void printSymbolTable(SymbolTable* symbolTable);
+
+FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray);
 
 // the stack of symbol tables. when a new scope is entered, its symbol table will be pushed
 // into this stack, and when leaving the scope, the table will be popped. the program will

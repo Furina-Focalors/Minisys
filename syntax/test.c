@@ -22,10 +22,9 @@ void testInsertSymbol() {
     int isDefined = 1;
     unsigned int stackFrameSize = 0;
     int paramNum = 0;
-    char* paramsType[] = {};
-    char* parameters[] = {};
+    FuncParam* params[] = {};
 
-    SymbolTableEntry* entry = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, paramsType, parameters);
+    SymbolTableEntry* entry = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, params);
     insertSymbol(symbolTable, entry);
 
     SymbolTableEntry* found = findSymbol("x");
@@ -34,6 +33,31 @@ void testInsertSymbol() {
     assert(found->size == sizeof(int));
     assert(found->isInitialized == 1);
     
+    destroySymbolTable(symbolTable);
+    scopeStackTop = 1;
+}
+
+void testFuncParam() {
+    SymbolTable* symbolTable = createSymbolTable();
+    scopeStack[scopeStackTop++] = symbolTable;
+
+    char* type = "int";
+    unsigned int size = sizeof(int);
+    int isInitialized = 1;
+    int isArray = 0;
+    int isFunction = 0;
+    int isDefined = 1;
+    unsigned int stackFrameSize = 0;
+    int paramNum = 3;
+    FuncParam* param1 = createFuncParam("int","a",4,0);
+    FuncParam* param2 = createFuncParam("char","b",8,1);
+    FuncParam* param3 = createFuncParam("short","c",2,0);
+    FuncParam* params[] = {param1, param2, param3};
+
+    SymbolTableEntry* entry1 = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, params);
+    int res1 = insertSymbol(symbolTable, entry1);
+
+    printSymbolTable(scopeStack[scopeStackTop-1]);
     destroySymbolTable(symbolTable);
     scopeStackTop = 1;
 }
@@ -50,16 +74,15 @@ void testRedefinitionCheck() {
     int isDefined = 1;
     unsigned int stackFrameSize = 0;
     int paramNum = 0;
-    char* paramsType[] = {};
-    char* parameters[] = {};
+    FuncParam* params[] = {};
     
-    SymbolTableEntry* entry1 = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, paramsType, parameters);
+    SymbolTableEntry* entry1 = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, params);
     int res1 = insertSymbol(symbolTable, entry1);
     
     assert(res1 == 0);
     assert(isDeclared(symbolTable, "x") == 1);  // First declaration is valid.
     
-    SymbolTableEntry* entry2 = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, paramsType, parameters);
+    SymbolTableEntry* entry2 = createSymbolTableEntry("x", type, size, isInitialized, isArray, isFunction, isDefined, stackFrameSize, paramNum, params);
     int res2 = insertSymbol(symbolTable, entry2);
     
     assert(res2 == -1);  // Second declaration should be detected as redefinition.
@@ -74,12 +97,12 @@ void testFindSymbol() {
     
     char* type1 = "int";
     unsigned int size1 = sizeof(int);
-    SymbolTableEntry* entry1 = createSymbolTableEntry("x", type1, size1, 1, 0, 0, 1, 0, 0, NULL, NULL);
+    SymbolTableEntry* entry1 = createSymbolTableEntry("x", type1, size1, 1, 0, 0, 1, 0, 0, NULL);
     insertSymbol(symbolTable, entry1);
     
     char* type2 = "char";
     unsigned int size2 = sizeof(char);
-    SymbolTableEntry* entry2 = createSymbolTableEntry("y", type2, size2, 1, 0, 0, 1, 0, 0, NULL, NULL);
+    SymbolTableEntry* entry2 = createSymbolTableEntry("y", type2, size2, 1, 0, 0, 1, 0, 0, NULL);
     insertSymbol(symbolTable, entry2);
     
     SymbolTableEntry* foundX = findSymbol("x");
@@ -98,7 +121,7 @@ void testDeleteSymbol() {
     
     char* type = "int";
     unsigned int size = sizeof(int);
-    SymbolTableEntry* entry = createSymbolTableEntry("x", type, size, 1, 0, 0, 1, 0, 0, NULL, NULL);
+    SymbolTableEntry* entry = createSymbolTableEntry("x", type, size, 1, 0, 0, 1, 0, 0, NULL);
     insertSymbol(symbolTable, entry);
     
     SymbolTableEntry* foundBeforeDelete = findSymbol("x");
@@ -115,11 +138,11 @@ void testDeleteSymbol() {
 
 void testScopeStack() {
     // global
-    insertSymbol(scopeStack[0], createSymbolTableEntry("x", "int", sizeof(int), 1, 0, 0, 1, 0, 0, NULL, NULL));
+    insertSymbol(scopeStack[0], createSymbolTableEntry("x", "int", sizeof(int), 1, 0, 0, 1, 0, 0, NULL));
 
     // Push a new scope
     scopeStack[scopeStackTop++] = createSymbolTable();
-    insertSymbol(scopeStack[scopeStackTop-1], createSymbolTableEntry("x", "char", sizeof(char), 1, 0, 0, 1, 0, 0, NULL, NULL));
+    insertSymbol(scopeStack[scopeStackTop-1], createSymbolTableEntry("x", "char", sizeof(char), 1, 0, 0, 1, 0, 0, NULL));
 
     // Find the symbol in the inner scope
     SymbolTableEntry* innerX = findSymbol("x");
@@ -159,6 +182,7 @@ int main(){
     printf("create&Destroy table passed.\n");
     testInsertSymbol();
     printf("insert symbol passed.\n");
+    testFuncParam();
     testRedefinitionCheck();
     printf("redefinition check passed.\n");
     testFindSymbol();

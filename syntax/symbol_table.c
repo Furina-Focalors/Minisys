@@ -26,7 +26,7 @@ SymbolTable* createSymbolTable() {
 SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
                                           unsigned int size, int isInitialized, int isArray,
                                           int isFunction, int isDefined, unsigned int stackFrameSize,
-                                          int paramNum, char** paramsType, char** parameters) {
+                                          int paramNum, FuncParam** params) {
     SymbolTableEntry* entry = (SymbolTableEntry*)malloc(sizeof(SymbolTableEntry));
     if (!entry) {
         fprintf(stderr, "Failed to allocate memory for symbol table entry.\n");
@@ -42,8 +42,7 @@ SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
     entry->isDefined = isDefined;
     entry->stackFrameSize = stackFrameSize;
     entry->paramNum = paramNum;
-    entry->paramsType = paramsType;
-    entry->parameters = parameters;
+    entry->params = params;
     return entry;
 }
 
@@ -68,7 +67,7 @@ int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
     HashNode* newNode = (HashNode*)malloc(sizeof(HashNode));
     if (!newNode) {
         fprintf(stderr, "Failed to allocate memory for hash node.\n");
-        return -1;
+        exit(1);
     }
     newNode->entry = entry;
     newNode->next = symbolTable->table[index]; // this is for conflict handling
@@ -211,8 +210,7 @@ SymbolTableEntry* createConstTableEntry(enum ConstType type, union ConstValue va
     entry->isDefined = 0;
     entry->stackFrameSize = 0;
     entry->paramNum = 0;
-    entry->paramsType = NULL;
-    entry->parameters = NULL;
+    entry->params = NULL;
 
     return entry;
 }
@@ -244,10 +242,14 @@ void printSymbolTableEntry(SymbolTableEntry* entry) {
         printf("Is Defined: %d\n", entry->isDefined);
         printf("Stack Frame Size: %u\n", entry->stackFrameSize);
         printf("Param Num: %d\n", entry->paramNum);
-        if (entry->parameters && entry->paramsType) {
+        if (entry->params) {
             printf("Parameters: ");
             for (int i = 0; i < entry->paramNum; ++i) {
-                printf("%s %s, ", entry->paramsType[i], entry->parameters[i]);
+                if (entry->params[i]->isArray) {
+                    printf("%s[] %s, ", entry->params[i]->type, entry->params[i]->id);
+                } else {
+                    printf("%s %s, ", entry->params[i]->type, entry->params[i]->id);
+                }
             }
             printf("\n");
         }
@@ -271,6 +273,14 @@ void printSymbolTable(SymbolTable* symbolTable) {
     printf("======================================\n");
 }
 
+FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray) {
+    FuncParam* param = (FuncParam*)malloc(sizeof(FuncParam));
+    param->id = strdup(id);  // 假设 id 是一个字符串，使用 strdup 复制
+    param->type = strdup(type);
+    param->size = size;
+    param->isArray = isArray;
+    return param;
+}
 
 // int main() {
 //     SymbolTable* symbolTable = createSymbolTable(NULL);

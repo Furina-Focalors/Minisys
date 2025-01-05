@@ -2,12 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include "ast.h"
+#include "symbol_table.h"
 
 int yylex(void);
-void yyerror(char *);
+void yyerror(const char *format, ...);
 
 ASTNode* root = NULL;
+
+#define PARAM_BUF_MAX 32
+FuncParam* paramsBuf[PARAM_BUF_MAX];
+int paramNum = 0;
+
+// used to check function parameters
+char* funcName = NULL;
 %}
 
 %union {
@@ -24,8 +33,9 @@ ASTNode* root = NULL;
 %token <node> LPAREN RPAREN LBRACKET RBRACKET DOT BITAND_OP BITINV_OP BITXOR_OP BITOR_OP
 %token _UNMATCH
 
-%type <node> program declarations declaration type_specifier param_list array func_call arg_list
+%type <node> program declarations declaration type_specifier param_list params param array func_call arg_list func_head
 %type <node> statements statement if_stmt for_stmt break_stmt while_stmt return_stmt continue_stmt expression_stmt expression
+%type <node> enter_scope leave_scope
 
 %left NO_ELSE
 %left ELSE
@@ -59,40 +69,100 @@ declarations:
 
 declaration:
       type_specifier IDENTIFIER SEMICOLON   {
+        // insert into symbol table
+        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $1->int_val, 0, 0, 0, 0, 0, 0, NULL);
+        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        if (res != 0) {
+            yyerror("Redefinition of symbol %s.\n", $2->id);
+        }
+
         $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
       }
     | type_specifier array SEMICOLON    {
+        // insert into symbol table
+        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $2->int_val*$1->int_val, 0, 1, 0, 0, 0, 0, NULL);
+        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        if (res != 0) {
+            yyerror("Redefinition of symbol %s.\n", $2->id);
+        }
+
         $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
     }
-    | type_specifier IDENTIFIER LPAREN param_list RPAREN SEMICOLON  {
-        $$ = createASTNode("DECLARATION", 6, $1, $2, $3, $4, $5, $6);
+    | func_head SEMICOLON                                           {
+        funcName = NULL; // this means we are not in the scope of this function
+        $$ = createASTNode("DECLARATION", 2, $1, $2);
     }
-    | type_specifier IDENTIFIER LPAREN param_list RPAREN LBRACE statements RBRACE   {
-        $$ = createASTNode("DECLARATION", 8, $1, $2, $3, $4, $5, $6, $7, $8);
-    }
-    | type_specifier IDENTIFIER LPAREN VOID RPAREN SEMICOLON    {
-        $$ = createASTNode("DECLARATION", 6, $1, $2, $3, $4, $5, $6);
-    }
-    | type_specifier IDENTIFIER LPAREN VOID RPAREN LBRACE statements RBRACE {
-        $$ = createASTNode("DECLARATION", 8, $1, $2, $3, $4, $5, $6, $7, $8);
+    | func_head LBRACE enter_scope statements leave_scope RBRACE    { $$ = createASTNode("DECLARATION", 4, $1, $2, $4, $6); }
+    ;
+
+enter_scope:
+    { scopeStack[scopeStackTop++] = createSymbolTable(); }
+    ;
+
+leave_scope:
+    {
+        // when leaving a local scope, the symbol table of it will be DELETED
+        destroySymbolTable(scopeStack[--scopeStackTop]);
     }
     ;
 
 type_specifier:
-      CHAR      { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
-    | INT       { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
-    | SHORT     { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
-    | VOID      { $$ = createASTNode("TYPE_SPECIFIER", 1, $1); }
+      CHAR      { $$ = createASTNode("CHAR", 1, $1); $$->int_val = 1; }
+    | INT       { $$ = createASTNode("INT", 1, $1); $$->int_val = 4; }
+    | SHORT     { $$ = createASTNode("SHORT", 1, $1); $$->int_val = 2; }
+    | VOID      { $$ = createASTNode("VOID", 1, $1); }
     ;
 
+func_head:
+    type_specifier IDENTIFIER LPAREN param_list RPAREN          {
+        FuncParam** params = NULL;
+        if (paramNum > 0) {
+            params = (FuncParam**)malloc(sizeof(FuncParam*) * paramNum);
+            for (int i = 0; i < paramNum; ++i) {
+                params[i] = paramsBuf[i];
+            }
+        }
+        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, 0, 0, 0, 1, 0, 0, paramNum, params);
+        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        if (res != 0) {
+            yyerror("Redefinition of symbol %s.\n", $2->id);
+        }
+        // reset buffer
+        paramNum = 0;
+        // if in function definition, this will help check names of parameters
+        funcName = $2->id;
+
+        $$ = createASTNode("FUNC_HEAD", 5, $1, $2, $3, $4, $5);
+    }
+;
+
 param_list:
+    VOID                                            { $$ = NULL; }
+    | params                                        { $$ = createASTNode("PARAM_LIST", 1, $1); }
+
+params:
                                                     { $$ = NULL; }
-    | param_list COMMA type_specifier IDENTIFIER    { $$ = createASTNode("PARAM_LIST", 4, $1, $2, $3, $4); }
-    | type_specifier IDENTIFIER                     { $$ = createASTNode("PARAM_LIST", 2, $1, $2); }
+    | params COMMA param                            { $$ = createASTNode("PARAMS", 3, $1, $2, $3); }
+    | param                                         { $$ = createASTNode("PARAMS", 1, $1); }
+    ;
+
+param:
+    type_specifier IDENTIFIER                       {
+        if (paramNum > PARAM_BUF_MAX) {
+            yyerror("Too many parameters in function.\n");
+        }
+        paramsBuf[paramNum++] = createFuncParam($1->id, $2->id, $1->int_val, 0);
+        $$ = createASTNode("PARAM", 2, $1, $2);
+    }        
+    | type_specifier IDENTIFIER LBRACKET RBRACKET   {
+        // note that as a param of the func, size of the array is unknown, so we store the size of its single element.
+        paramsBuf[paramNum++] = createFuncParam($1->id, $2->id, $1->int_val, 1);
+        $$ = createASTNode("PARAM", 2, $1, $2);
+    }
     ;
 
 array:
-      IDENTIFIER LBRACKET INT_CONSTANT RBRACKET     { $$ = createASTNode("ARRAY", 4, $1, $2, $3, $4); }
+      IDENTIFIER LBRACKET INT_CONSTANT RBRACKET     { $$ = createASTNode("ARRAY", 4, $1, $2, $3, $4); $$->int_val=$3->int_val; }
     ;
 
 func_call:
@@ -111,15 +181,15 @@ statements:
     ;
 
 statement:
-      expression_stmt               { $$ = createASTNode("STATEMENT", 1, $1); }
-    | LBRACE statements RBRACE      { $$ = createASTNode("STATEMENT", 3, $1, $2, $3); }
-    | if_stmt                       { $$ = createASTNode("STATEMENT", 1, $1); }
-    | while_stmt                    { $$ = createASTNode("STATEMENT", 1, $1); }
-    | return_stmt                   { $$ = createASTNode("STATEMENT", 1, $1); }
-    | break_stmt                    { $$ = createASTNode("STATEMENT", 1, $1); }
-    | continue_stmt                 { $$ = createASTNode("STATEMENT", 1, $1); }
-    | for_stmt                      { $$ = createASTNode("STATEMENT", 1, $1); }
-    | declaration                   { $$ = createASTNode("STATEMENT", 1, $1); }
+      expression_stmt                                       { $$ = createASTNode("STATEMENT", 1, $1); }
+    | LBRACE enter_scope statements leave_scope RBRACE      { $$ = createASTNode("STATEMENT", 3, $1, $3, $5); }
+    | if_stmt                                               { $$ = createASTNode("STATEMENT", 1, $1); }
+    | while_stmt                                            { $$ = createASTNode("STATEMENT", 1, $1); }
+    | return_stmt                                           { $$ = createASTNode("STATEMENT", 1, $1); }
+    | break_stmt                                            { $$ = createASTNode("STATEMENT", 1, $1); }
+    | continue_stmt                                         { $$ = createASTNode("STATEMENT", 1, $1); }
+    | for_stmt                                              { $$ = createASTNode("STATEMENT", 1, $1); }
+    | declaration                                           { $$ = createASTNode("STATEMENT", 1, $1); }
     ;
 
 expression_stmt:
@@ -209,8 +279,16 @@ expression:
     
 
 %%
-void yyerror(char *str){
-    fprintf(stderr,"error:%s\n",str);
+void yyerror(const char *format, ...){
+    extern int yylineno;
+    fprintf(stderr, "Error at line %d: ", yylineno);
+
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    exit(1);
 }
 
 int yywrap(){
