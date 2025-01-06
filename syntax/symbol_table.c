@@ -78,13 +78,37 @@ int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
 
 SymbolTableEntry* findSymbol(char* id) {
     unsigned int index = hash(id);
+    unsigned int funcIndex = 0;
+    if (funcName != NULL) {
+        funcIndex = hash(funcName);
+    }
     for (int i = scopeStackTop - 1;i >= 0;--i) {
+        // find var in the table
         HashNode* node = scopeStack[i]->table[index];
         while (node) {
             if (strcmp(node->entry->id, id) == 0) {
                 return node->entry;
             }
             node = node->next;
+        }
+
+        if (funcName != NULL) {
+            // find var in func params
+            HashNode* funcNode = scopeStack[i]->table[funcIndex];
+            while (funcNode) {
+                if (strcmp(funcNode->entry->id, funcName) == 0) {
+                    for (int i=0;i<funcNode->entry->paramNum;++i) {
+                        if (strcmp(funcNode->entry->params[i]->id, id) == 0) {
+                            return createSymbolTableEntry(
+                                funcNode->entry->params[i]->id, funcNode->entry->params[i]->type, 
+                                funcNode->entry->params[i]->size, 0, 
+                                funcNode->entry->params[i]->isArray, 0, 0, 0, 0, NULL
+                                );
+                        }
+                    }
+                }
+                funcNode = funcNode->next;
+            }
         }
     }
 
@@ -282,7 +306,7 @@ void printScopeStack() {
 
 FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray) {
     FuncParam* param = (FuncParam*)malloc(sizeof(FuncParam));
-    param->id = strdup(id);  // ¼ÙÉè id ÊÇÒ»¸ö×Ö·û´®£¬Ê¹ÓÃ strdup ¸´ÖÆ
+    param->id = strdup(id);  // ï¿½ï¿½ï¿½ï¿½ id ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½ strdup ï¿½ï¿½ï¿½ï¿½
     param->type = strdup(type);
     param->size = size;
     param->isArray = isArray;

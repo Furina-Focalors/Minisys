@@ -102,4 +102,5 @@ FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray)
 #define SYMBOL_TABLE_STACK_SIZE 256
 SymbolTable *scopeStack[SYMBOL_TABLE_STACK_SIZE];
 extern int scopeStackTop;
+extern char* funcName;
 #endif

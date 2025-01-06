@@ -6,6 +6,7 @@
 #include "ast.h"
 #include "symbol_table.h"
 #include "semantic.h"
+//#include "tac.h"
 
 int yylex(void);
 void yyerror(const char *format, ...);
@@ -204,7 +205,12 @@ declaration:
         funcName = NULL; // this means we are not in the scope of this function
         $$ = createASTNode("DECLARATION", 2, $1, $2);
     }
-    | func_head LBRACE enter_scope statements leave_scope RBRACE    { $$ = createASTNode("DECLARATION", 4, $1, $2, $4, $6); }
+    | func_head LBRACE enter_scope statements leave_scope RBRACE    {
+        $$ = createASTNode("DECLARATION", 4, $1, $2, $4, $6);
+        // set isDefined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        entry->isDefined = 1;
+    }
     ;
 
 prefix:
@@ -284,18 +290,24 @@ func_head:
                 params[i] = paramsBuf[i];
             }
         }
-        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, 0, 0, 0, 1, 0, 0, paramNum, params);
-        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+
         // redefinition check
-        if (res != 0) {
-            yyerror("Redefinition of symbol %s.\n", $2->id);
+        SymbolTableEntry* entry1 = findSymbol($2->id);
+        if (entry1 != NULL && entry1->isDefined == 1) {
+            yyerror("Redefinition of function %s.\n", $2->id);
         }
+        // if the function is already declared but not defined, skip insertion
+        if (entry1 == NULL) {
+            SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, 0, 0, 0, 1, 0, 0, paramNum, params);
+            int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        }
+
         // reset buffer
         paramNum = 0;
         // if in function definition, this will help check names of parameters
         funcName = $2->id;
 
-        $$ = createASTNode("FUNC_HEAD", 5, $1, $2, $3, $4, $5);
+        $$ = createASTNode($2->id, 5, $1, $2, $3, $4, $5);
     }
     ;
 
@@ -393,6 +405,8 @@ func_call:
         $$ = createASTNode(entry->type, 4, $1, $2, $3, $4);
         // func call is never const
         $$->isConst = 0;
+        // reset buffer
+        paramNum = 0;
     }
     ;
 
