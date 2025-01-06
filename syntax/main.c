@@ -25,6 +25,9 @@ int main(int argc, char *argv[]) {
 
     yyparse();
 
+    //printSymbolTable(scopeStack[0]);
+    destroySymbolTable(scopeStack[0]);
+
     fclose(yyin);
     return 0;
 }

@@ -20,6 +20,7 @@ typedef struct ASTNode {
         char char_val;
         char* str_val;
     }; // the value of CONSTANTS
+    int isConst; // default = 1
 } ASTNode;
 
 /* create an AST node for identifiers or keywords.

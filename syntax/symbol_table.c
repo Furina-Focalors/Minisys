@@ -43,6 +43,7 @@ SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
     entry->stackFrameSize = stackFrameSize;
     entry->paramNum = paramNum;
     entry->params = params;
+    entry->constType = NON_CONST;
     return entry;
 }
 
@@ -60,7 +61,7 @@ int isDeclared(SymbolTable* symbolTable, char* id) {
 
 int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry) {
     if (isDeclared(symbolTable, entry->id) == 1) {
-        perror("attempting to redefine symbol.\n");
+        //perror("attempting to redefine symbol.\n");
         return -1;
     }
     unsigned int index = hash(entry->id);
@@ -271,6 +272,12 @@ void printSymbolTable(SymbolTable* symbolTable) {
         }
     }
     printf("======================================\n");
+}
+
+void printScopeStack() {
+    for (int i=scopeStackTop-1;i>=0;--i) {
+        printSymbolTable(scopeStack[i]);
+    }
 }
 
 FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray) {

@@ -13,6 +13,7 @@ H           0[xX][a-fA-F0-9]+
 "//"(.*)(\n)?               { /* ignore comments */ }
 "break"			            { yylval.node=createASTNode("BREAK",0); return(BREAK); }
 "char"                      { yylval.node=createASTNode("CHAR",0); return(CHAR); }
+"const"                     { yylval.node=createASTNode("CONST",0); return(CONST); }
 "continue"	                { yylval.node=createASTNode("CONTINUE",0); return(CONTINUE); }
 "else"			            { yylval.node=createASTNode("ELSE",0); return(ELSE); }
 "for"			            { yylval.node=createASTNode("FOR",0); return(FOR); }

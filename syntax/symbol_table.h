@@ -30,7 +30,7 @@ typedef struct FuncParam {
 
 typedef struct SymbolTableEntry {
     char* id;
-    /* type supports int, char, short and void.
+    /* type supports INT, CHAR, SHORT and VOID.
      * for array variables, this is the type of its elements;
      * for functions, this is the type for its return value.
      */
@@ -49,8 +49,6 @@ typedef struct SymbolTableEntry {
     int isDefined;
     unsigned int stackFrameSize;
     int paramNum;
-    // char** paramsType;
-    // char** parameters;
     FuncParam** params;
 } SymbolTableEntry;
 
@@ -68,6 +66,7 @@ unsigned int hash(char* str);
 
 SymbolTable* createSymbolTable();
 
+// note that constValue is not initialized in this function, and constType is set to NON_CONST in default
 SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
                                           unsigned int size, int isInitialized, int isArray,
                                           int isFunction, int isDefined, unsigned int stackFrameSize,
@@ -75,7 +74,7 @@ SymbolTableEntry* createSymbolTableEntry(char* id, char* type,
 
 int insertSymbol(SymbolTable* symbolTable, SymbolTableEntry* entry);
 
-// used to check redefinition
+// deprecated
 int isDeclared(SymbolTable* symbolTable, char* id);
 
 // this will find the identifier in itself and the symbol tables of the outer scopes
@@ -85,12 +84,14 @@ void deleteSymbol(SymbolTable* symbolTable, char* id);
 
 void destroySymbolTable(SymbolTable* symbolTable);
 
-// we currently do not support 'const', so this is used to create an entry for constants but not const variables
+// deprecated
 SymbolTableEntry* createConstTableEntry(enum ConstType type, union ConstValue value);
 
 void printSymbolTableEntry(SymbolTableEntry* entry);
 
 void printSymbolTable(SymbolTable* symbolTable);
+
+void printScopeStack();
 
 FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray);
 

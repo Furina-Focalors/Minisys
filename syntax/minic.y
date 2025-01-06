@@ -5,12 +5,14 @@
 #include <stdarg.h>
 #include "ast.h"
 #include "symbol_table.h"
+#include "semantic.h"
 
 int yylex(void);
 void yyerror(const char *format, ...);
 
 ASTNode* root = NULL;
 
+// stores the params of function
 #define PARAM_BUF_MAX 32
 FuncParam* paramsBuf[PARAM_BUF_MAX];
 int paramNum = 0;
@@ -25,7 +27,7 @@ char* funcName = NULL;
 
 %token <node> INT_CONSTANT CHAR_CONSTANT
 %token <node> IDENTIFIER STRING_LITERAL
-%token <node> _COMMENT BREAK CONTINUE ELSE FOR IF RETURN WHILE CHAR INT SHORT VOID
+%token <node> _COMMENT BREAK CONST CONTINUE ELSE FOR IF RETURN WHILE CHAR INT SHORT VOID
 %token <node> ADD_OP SUB_OP MUL_OP DIV_OP MOD_OP INC_OP DEC_OP
 %token <node> LE_OP GE_OP EQ_OP NE_OP LT_OP GT_OP
 %token <node> AND_OP OR_OP NOT_OP ADDR_OP RIGHT_OP LEFT_OP
@@ -35,7 +37,7 @@ char* funcName = NULL;
 
 %type <node> program declarations declaration type_specifier param_list params param array func_call arg_list func_head
 %type <node> statements statement if_stmt for_stmt break_stmt while_stmt return_stmt continue_stmt expression_stmt expression
-%type <node> enter_scope leave_scope
+%type <node> prefix enter_scope leave_scope var_assignment array_assignment array_element array_declaration
 
 %left NO_ELSE
 %left ELSE
@@ -58,7 +60,7 @@ program:
     declarations                   {
         // this will NOT be executed until yyparse() terminated
         $$ = createASTNode("PROGRAM", 1, $1);
-        preorderPrint($$);
+        //preorderPrint($$);
         }
     ;
 
@@ -68,25 +70,135 @@ declarations:
     ;
 
 declaration:
-      type_specifier IDENTIFIER SEMICOLON   {
+    type_specifier IDENTIFIER var_assignment SEMICOLON              {
+        // type check 1. void type is not allowed for variables
+        if (strcmp($1->id, "VOID") == 0) {
+            yyerror("Cannot declare variable as 'void' type.\n");
+        }
+
+        int isInitialized = 0;
+        if ($3 != NULL) {
+            isInitialized = 1;
+            // type check 2 for type consistency of lvalue and rvalue
+            if (!isCompatible($1->id, $3->id)) {
+                yyerror("Incompatible type for variable %s.\n", $2->id);
+            }
+        }
         // insert into symbol table
-        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $1->int_val, 0, 0, 0, 0, 0, 0, NULL);
+        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $1->int_val, isInitialized, 0, 0, 0, 0, 0, NULL);
         int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        // redefinition check
         if (res != 0) {
             yyerror("Redefinition of symbol %s.\n", $2->id);
         }
 
-        $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
+        $$ = createASTNode("DECLARATION", 4, $1, $2, $3, $4);
+    }
+    | prefix type_specifier IDENTIFIER var_assignment SEMICOLON     {
+        // type check 1. void type is not allowed for variables
+        if (strcmp($2->id, "VOID") == 0) {
+            yyerror("Cannot declare variable as 'void' type.\n");
+        }
+
+        int isInitialized = 0;
+        if ($4 != NULL) {
+            isInitialized = 1;
+            // type check 2 for type consistency of lvalue and rvalue
+            if (!isCompatible($2->id, $4->id)) {
+                yyerror("Incompatible type for variable %s.\n", $3->id);
+            }
+        }
+        // insert into symbol table
+        SymbolTableEntry* entry = createSymbolTableEntry($3->id, $2->id, $2->int_val, isInitialized, 0, 0, 0, 0, 0, NULL);
+        // set const types
+        if ($1 != NULL && $1->id == "CONST") {
+            // const check
+            if ($4->isConst == 0) {
+                yyerror("Value of const variables should be const expression.\n");
+            }
+            if (strcmp($2->id, "CHAR") == 0) {
+                entry->constType = CONST_CHAR;
+                entry->constValue.charVal = $4->char_val;
+            } else if (strcmp($2->id, "SHORT") == 0 || strcmp($2->id, "INT") == 0) {
+                entry->constType = CONST_INT;
+                entry->constValue.intVal = $4->int_val;
+            } else {
+                yyerror("Unknown error when resolving const.\n");
+            }
+        }
+        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        // redefinition check
+        if (res != 0) {
+            yyerror("Redefinition of symbol %s.\n", $3->id);
+        }
+
+        $$ = createASTNode("DECLARATION", 5, $1, $2, $3, $4, $5);
       }
-    | type_specifier array SEMICOLON    {
-        // insert into symbol table
-        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $2->int_val*$1->int_val, 0, 1, 0, 0, 0, 0, NULL);
+    | type_specifier array_declaration array_assignment SEMICOLON           {
+        // type check. void type is not allowed for variables
+        if (strcmp($1->id, "VOID") == 0) {
+            yyerror("Cannot declare variable as 'void' type.\n");
+        }
+        
+        int isInitialized = 0;
+        if ($3 != NULL) {
+            isInitialized = 1;
+            // type check 2 for type consistency of lvalue and rvalue
+            if (!isCompatible($1->id, $3->id)) {
+                yyerror("Incompatible type for variable %s.\n", $2->id);
+            }
+        }
+
+        SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, $1->int_val*$2->int_val, isInitialized, 1, 0, 0, 0, 0, NULL);
         int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        // redefinition check
         if (res != 0) {
             yyerror("Redefinition of symbol %s.\n", $2->id);
         }
 
-        $$ = createASTNode("DECLARATION", 3, $1, $2, $3);
+        $$ = createASTNode("DECLARATION", 4, $1, $2, $3, $4);
+    }
+    | prefix type_specifier array_declaration array_assignment SEMICOLON    {
+        // type check. void type is not allowed for variables
+        if (strcmp($2->id, "VOID") == 0) {
+            yyerror("Cannot declare variable as 'void' type.\n");
+        }
+        
+        int isInitialized = 0;
+        if ($4 != NULL) {
+            isInitialized = 1;
+            // type check 2 for type consistency of lvalue and rvalue
+            if (!isCompatible($2->id, $4->id)) {
+                yyerror("Incompatible type for variable %s.\n", $3->id);
+            }
+        }
+
+        SymbolTableEntry* entry = createSymbolTableEntry($3->id, $2->id, $3->int_val*$2->int_val, isInitialized, 1, 0, 0, 0, 0, NULL);
+        
+        // set const types
+        if ($1->id == "CONST") {
+            // const check
+            if ($4->isConst == 0) {
+                yyerror("Value of const variables should be const expression.\n");
+            }
+            if (strcmp($2->id, "CHAR") == 0) {
+                entry->constType = CONST_CHAR;
+                entry->constValue.charVal = $4->char_val;
+            } else if (strcmp($2->id, "SHORT") == 0 || strcmp($2->id, "INT") == 0) {
+                entry->constType = CONST_INT;
+                entry->constValue.intVal = $4->int_val;
+            } else {
+                yyerror("Unknown error when resolving const.\n");
+            }
+        }
+        // insert into symbol table
+        int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        // redefinition check
+        if (res != 0) {
+            yyerror("Redefinition of symbol %s.\n", $3->id);
+        }
+
+        $$ = createASTNode("DECLARATION", 5, $1, $2, $3, $4, $5);
     }
     | func_head SEMICOLON                                           {
         funcName = NULL; // this means we are not in the scope of this function
@@ -95,12 +207,62 @@ declaration:
     | func_head LBRACE enter_scope statements leave_scope RBRACE    { $$ = createASTNode("DECLARATION", 4, $1, $2, $4, $6); }
     ;
 
+prefix:
+    CONST         { $$ = createASTNode("CONST", 1, $1); }
+    ;
+
+var_assignment:
+                                                { $$ = NULL; }
+    | ASSIGN_OP expression                      {
+        // expr type
+        $$ = createASTNode($2->id, 2, $1, $2);
+        $$->isConst = $2->isConst;
+        // parse value if isConst
+        if ($2->isConst == 1) {
+            if (strcmp($2->id, "CHAR") == 0) {
+                $$->char_val = $2->char_val;
+            } else {
+                $$->int_val = $2->int_val;
+            }
+        }
+    }
+    ;
+
+array_assignment:
+                                                { $$ = NULL; }
+    | ASSIGN_OP LBRACE array_element RBRACE     {
+        $$ = createASTNode($3->id, 4, $1, $2, $3, $4);
+    }
+    | ASSIGN_OP STRING_LITERAL                  {
+        $$ = createASTNode("CHAR", 2, $1, $2);
+        $$->str_val = $2->str_val;
+    }
+    | ASSIGN_OP IDENTIFIER                      {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($2->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $2->id);
+        }
+        // array type check
+        if (entry->isArray == 0) {
+            yyerror("Cannot assign non-array variable to an array variable.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        if (entry->constType == NON_CONST) {
+            $$->isConst = 0;
+        } else {
+            $$->isConst = 1;
+        }
+    }
+    ;
+
 enter_scope:
     { scopeStack[scopeStackTop++] = createSymbolTable(); }
     ;
 
 leave_scope:
     {
+        //printSymbolTable(scopeStack[scopeStackTop-1]);
         // when leaving a local scope, the symbol table of it will be DELETED
         destroySymbolTable(scopeStack[--scopeStackTop]);
     }
@@ -124,6 +286,7 @@ func_head:
         }
         SymbolTableEntry* entry = createSymbolTableEntry($2->id, $1->id, 0, 0, 0, 1, 0, 0, paramNum, params);
         int res = insertSymbol(scopeStack[scopeStackTop-1], entry);
+        // redefinition check
         if (res != 0) {
             yyerror("Redefinition of symbol %s.\n", $2->id);
         }
@@ -134,11 +297,12 @@ func_head:
 
         $$ = createASTNode("FUNC_HEAD", 5, $1, $2, $3, $4, $5);
     }
-;
+    ;
 
 param_list:
     VOID                                            { $$ = NULL; }
     | params                                        { $$ = createASTNode("PARAM_LIST", 1, $1); }
+    ;
 
 params:
                                                     { $$ = NULL; }
@@ -147,32 +311,109 @@ params:
     ;
 
 param:
-    type_specifier IDENTIFIER                       {
+    type_specifier IDENTIFIER                               {
         if (paramNum > PARAM_BUF_MAX) {
             yyerror("Too many parameters in function.\n");
         }
         paramsBuf[paramNum++] = createFuncParam($1->id, $2->id, $1->int_val, 0);
         $$ = createASTNode("PARAM", 2, $1, $2);
+        $$->isConst = 0;
     }        
-    | type_specifier IDENTIFIER LBRACKET RBRACKET   {
+    | type_specifier IDENTIFIER LBRACKET RBRACKET           {
+        if (paramNum > PARAM_BUF_MAX) {
+            yyerror("Too many parameters in function.\n");
+        }
         // note that as a param of the func, size of the array is unknown, so we store the size of its single element.
         paramsBuf[paramNum++] = createFuncParam($1->id, $2->id, $1->int_val, 1);
         $$ = createASTNode("PARAM", 2, $1, $2);
+        $$->isConst = 0;
+    }
+    ;
+
+array_declaration:
+    IDENTIFIER LBRACKET expression RBRACKET     {
+        // index type check
+        if (!isNum($3->id)) {
+            yyerror("Invalid index for variable %s.\n", $1->id);
+        }
+        // const check
+        if ($3->isConst == 0) {
+            yyerror("Array size should be non-const.\n");
+        }
+        $$ = createASTNode($1->id, 4, $1, $2, $3, $4);
+        // during declaration, this will be the size of an array.
+        $$->int_val = $3->int_val;
     }
     ;
 
 array:
-      IDENTIFIER LBRACKET INT_CONSTANT RBRACKET     { $$ = createASTNode("ARRAY", 4, $1, $2, $3, $4); $$->int_val=$3->int_val; }
+    IDENTIFIER LBRACKET expression RBRACKET     {
+        // index type check
+        if (!isNum($3->id)) {
+            yyerror("Invalid index for variable %s.\n", $1);
+        }
+        $$ = createASTNode($1->id, 4, $1, $2, $3, $4);
+        // we currently do not do optimization for array elements even if it is const
+        $$->isConst = 0;
+    }
+    ;
+
+array_element:
+                                        { $$ = NULL; }
+    | array_element COMMA expression    {
+        // check if all of the elements have the same type
+        if (strcmp($1->id, $3->id) != 0) {
+            yyerror("Element type should be consistent.\n");
+        }
+        // set type of array element
+        $$ = createASTNode($3->id, 3, $1, $2, $3);
+    }
+    | expression                        {
+        // check if expression type is valid
+        if (!isNum($1->id) && !isChar($1->id)) {
+            yyerror("Unsupported type for array element.\n");
+        }
+        $$ = createASTNode($1->id, 1, $1);
+    }
     ;
 
 func_call:
-    IDENTIFIER LPAREN arg_list RPAREN               { $$ = createASTNode("FUNC_CALL", 4, $1, $2, $3, $4); }
+    IDENTIFIER LPAREN arg_list RPAREN               {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // check the type of params
+        for (int i=0;i<paramNum;++i) {
+            if (!isCompatible(paramsBuf[i]->type, entry->params[i]->type)) {
+                yyerror("Incompatible parameter type. Expects %s, but received %s.\n", entry->params[i]->type, paramsBuf[i]->type);
+            }
+        }
+        $$ = createASTNode(entry->type, 4, $1, $2, $3, $4);
+        // func call is never const
+        $$->isConst = 0;
+    }
     ;
 
 arg_list:
                                     { $$ = NULL; }
-    | arg_list COMMA expression     { $$ = createASTNode("ARG_LIST", 3, $1, $2, $3); }
-    | expression                    { $$ = createASTNode("ARG_LIST", 1, $1); }
+    | arg_list COMMA expression     {
+        if (paramNum > PARAM_BUF_MAX) {
+            yyerror("Too many parameters in function.\n");
+        }
+        // save type of the params for type check
+        paramsBuf[paramNum++] = createFuncParam($3->id, NULL, 0, 0);
+        $$ = createASTNode("ARG_LIST", 3, $1, $2, $3);
+        // we currently consider all arguments non-const
+        $$->isConst = 0;
+    }
+    | expression                    {
+        paramsBuf[paramNum++] = createFuncParam($1->id, NULL, 0, 0);
+        $$ = createASTNode("ARG_LIST", 1, $1);
+        // we currently consider all arguments non-const
+        $$->isConst = 0;
+    }
     ;
 
 statements:
@@ -193,9 +434,56 @@ statement:
     ;
 
 expression_stmt:
-    IDENTIFIER ASSIGN_OP expression SEMICOLON               { $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4); }
-    | array ASSIGN_OP expression SEMICOLON                  { $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4); }
-    | ADDR_OP expression ASSIGN_OP expression SEMICOLON     { $$ = createASTNode("EXPR_STMT", 5, $1, $2, $3, $4, $5); }
+    IDENTIFIER ASSIGN_OP expression SEMICOLON               {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check 2 for type consistency of lvalue and rvalue
+        if (!isCompatible(entry->type, $3->id)) {
+            yyerror("Incompatible type for variable %s.\n", $1->id);
+        }
+        // parse value if isConst
+        if (entry->constType != NON_CONST && $3->isConst == 1) {
+            if (strcmp($3->id, "CHAR") == 0) {
+                entry->constValue.charVal = $3->char_val;
+            } else {
+                entry->constValue.intVal = $3->int_val;
+            }
+        }
+
+        $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4);
+    }
+    | array ASSIGN_OP expression SEMICOLON                  {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check 2 for type consistency of lvalue and rvalue
+        if (!isCompatible(entry->type, $3->id)) {
+            yyerror("Incompatible type for variable %s.\n", $1->id);
+        }
+        // parse value if isConst
+        if (entry->constType != NON_CONST && $3->isConst == 1) {
+            if (strcmp($3->id, "CHAR") == 0) {
+                entry->constValue.charVal = $3->char_val;
+            } else {
+                entry->constValue.intVal = $3->int_val;
+            }
+        }
+
+        $$ = createASTNode("EXPR_STMT", 4, $1, $2, $3, $4);
+    }
+    | ADDR_OP expression ASSIGN_OP expression SEMICOLON     {
+        // type check
+        if (!isNum($2->id)) {
+            yyerror("Address can only be integers.\n");
+        }
+
+        $$ = createASTNode("EXPR_STMT", 5, $1, $2, $3, $4, $5);
+    }
     | expression SEMICOLON                                  { $$ = createASTNode("EXPR_STMT", 2, $1, $2); }
     | SEMICOLON                                             { $$ = createASTNode("EXPR_STMT", 1, $1); }
     ;
@@ -235,46 +523,543 @@ for_stmt:
     ;
 
 expression:
-    ADD_OP expression %prec UPLUS           { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | SUB_OP expression %prec UMINUS        { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | INC_OP IDENTIFIER                     { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | IDENTIFIER INC_OP                     { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | DEC_OP IDENTIFIER                     { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | IDENTIFIER DEC_OP                     { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | INC_OP array                          { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | array INC_OP                          { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | DEC_OP array                          { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | array DEC_OP                          { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | NOT_OP expression                     { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | BITINV_OP expression                  { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | ADDR_OP expression                    { $$ = createASTNode("EXPR", 2, $1, $2); }
-    | expression MUL_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression DIV_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression MOD_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression ADD_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression SUB_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | IDENTIFIER LEFT_OP expression         { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | IDENTIFIER RIGHT_OP expression        { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | array LEFT_OP expression              { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | array RIGHT_OP expression             { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression GT_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression LT_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression GE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression LE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression EQ_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression NE_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression BITAND_OP expression       { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression BITXOR_OP expression       { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression BITOR_OP expression        { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression AND_OP expression          { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | expression OR_OP expression           { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | LPAREN expression RPAREN              { $$ = createASTNode("EXPR", 3, $1, $2, $3); }
-    | IDENTIFIER                            { $$ = createASTNode("EXPR", 1, $1); }
-    | array                                 { $$ = createASTNode("EXPR", 1, $1); }
-    | func_call                             { $$ = createASTNode("EXPR", 1, $1); }
-    | INT_CONSTANT                          { $$ = createASTNode("EXPR", 1, $1); }
-    | CHAR_CONSTANT                         { $$ = createASTNode("EXPR", 1, $1); }
-    | STRING_LITERAL                        { $$ = createASTNode("EXPR", 1, $1); }
+    ADD_OP expression %prec UPLUS           {
+        // type check
+        if (!isNum($2->id)) {
+            yyerror("Incompatible type for plus operator.\n");
+        }
+        $$ = createASTNode($2->id, 2, $1, $2);
+        $$->isConst = $2->isConst;
+        if ($2->isConst == 1) {
+            $$->int_val = $$->int_val;
+        }
+    }
+    | SUB_OP expression %prec UMINUS        {
+        // type check
+        if (!isNum($2->id)) {
+            yyerror("Incompatible type for minus operator.\n");
+        }
+        $$ = createASTNode($2->id, 2, $1, $2);
+        $$->isConst = $2->isConst;
+        if ($2->isConst == 1) {
+            $$->int_val = -$$->int_val;
+        }
+    }
+    | INC_OP IDENTIFIER                     {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($2->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $2->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for increment operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | IDENTIFIER INC_OP                     {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for increment operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | DEC_OP IDENTIFIER                     {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($2->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $2->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for decrement operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | IDENTIFIER DEC_OP                     {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for decrement operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | INC_OP array                          {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($2->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $2->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for increment operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | array INC_OP                          {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for increment operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | DEC_OP array                          {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($2->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $2->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for decrement operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | array DEC_OP                          {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // const check
+        if (entry->constType != NON_CONST) {
+            yyerror("Expression should be non-const left value.\n");
+        }
+        // type check
+        if (!isNum(entry->type)) {
+            yyerror("Incompatible type for decrement operator.\n");
+        }
+        $$ = createASTNode(entry->type, 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | NOT_OP expression                     {
+        // type check
+        if (!isNum($2->id)) {
+            yyerror("Incompatible type for not operator.\n");
+        }
+        $$ = createASTNode($2->id, 2, $1, $2);
+        $$->isConst = $2->isConst;
+        // parse value if isConst
+        if ($2->isConst == 1) {
+            int val = 1;
+            if ($2->int_val != 0) {
+                val = 0;
+            }
+            $$->int_val = val;
+        }
+    }
+    | BITINV_OP expression                  {
+        // type check
+        if (!isNum($2->id) && !isChar($2->id)) {
+            yyerror("Incompatible type for not operator.\n");
+        }
+        $$ = createASTNode($2->id, 2, $1, $2);
+        $$->isConst = $2->isConst;
+        // parse value if isConst
+        if ($2->isConst == 1) {
+            if (strcmp($2->id, "CHAR") == 0) {
+                $$->char_val = ~($2->char_val);
+            } else {
+                $$->int_val = ~($2->int_val);
+            }
+        }
+    }
+    | ADDR_OP expression                    {
+        // type check
+        if (!isNum($2->id)) {
+            yyerror("Incompatible type for not operator.\n");
+        }
+        // addr operation is never considered const and have 'MEM' type.
+        // the compiler will NOT perform any type check for MEM.
+        $$ = createASTNode("MEM", 2, $1, $2);
+        $$->isConst = 0;
+    }
+    | expression MUL_OP expression          {
+        // type check
+        if (!isNum($1->id) || !isNum($3->id)) {
+            yyerror("Incompatible type for multiply operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $2->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val * $3->int_val;
+        }
+    }
+    | expression DIV_OP expression          {
+        // type check
+        if (!isNum($1->id) || !isNum($3->id)) {
+            yyerror("Incompatible type for divide operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val / $3->int_val;
+        }
+    }
+    | expression MOD_OP expression          {
+        // type check
+        if (!isNum($1->id) || !isNum($3->id)) {
+            yyerror("Incompatible type for modulo operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val % $3->int_val;
+        }
+    }
+    | expression ADD_OP expression          {
+        // type check
+        if (!isNum($1->id) || !isNum($3->id)) {
+            yyerror("Incompatible type for add operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val + $3->int_val;
+        }
+    }
+    | expression SUB_OP expression          {
+        // type check
+        if (!isNum($1->id) || !isNum($3->id)) {
+            yyerror("Incompatible type for sub operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val - $3->int_val;
+        }
+    }
+    | IDENTIFIER LEFT_OP expression         {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check
+        if (!isNum(entry->type) || !isNum($3->id)) {
+            yyerror("Incompatible type for left operator.\n");
+        }
+        $$ = createASTNode(entry->type, 3, $1, $2, $3);
+        $$->isConst = entry->constType && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val << $3->int_val;
+        }
+    }
+    | IDENTIFIER RIGHT_OP expression        {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check
+        if (!isNum(entry->type) || !isNum($3->id)) {
+            yyerror("Incompatible type for right operator.\n");
+        }
+        $$ = createASTNode(entry->type, 3, $1, $2, $3);
+        $$->isConst = entry->constType && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val >> $3->int_val;
+        }
+    }
+    | array LEFT_OP expression              {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check
+        if (!isNum(entry->type) || !isNum($3->id)) {
+            yyerror("Incompatible type for left operator.\n");
+        }
+        $$ = createASTNode(entry->type, 3, $1, $2, $3);
+        $$->isConst = entry->constType && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val << $3->int_val;
+        }
+    }
+    | array RIGHT_OP expression             {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // type check
+        if (!isNum(entry->type) || !isNum($3->id)) {
+            yyerror("Incompatible type for right operator.\n");
+        }
+        $$ = createASTNode(entry->type, 3, $1, $2, $3);
+        $$->isConst = entry->constType && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val >> $3->int_val;
+        }
+    }
+    | expression GT_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for > operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val > $3->int_val;
+        }
+    }
+    | expression LT_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for < operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $2->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val < $3->int_val;
+        }
+    }
+    | expression GE_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for >= operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val >= $3->int_val;
+        }
+    }
+    | expression LE_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for <= operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val <= $3->int_val;
+        }
+    }
+    | expression EQ_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for == operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val == $3->int_val;
+        }
+    }
+    | expression NE_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for != operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val != $3->int_val;
+        }
+    }
+    | expression BITAND_OP expression       {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for & operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            if (strcmp($1->id, "CHAR") == 0) {
+                $$->char_val = $1->char_val & $3->char_val;
+            } else {
+                $$->int_val = $1->int_val & $3->int_val;
+            }
+        }
+    }
+    | expression BITXOR_OP expression       {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for ^ operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            if (strcmp($1->id, "CHAR") == 0) {
+                $$->char_val = $1->char_val ^ $3->char_val;
+            } else {
+                $$->int_val = $1->int_val ^ $3->int_val;
+            }
+        }
+    }
+    | expression BITOR_OP expression        {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for | operator.\n");
+        }
+        $$ = createASTNode($1->id, 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            if (strcmp($1->id, "CHAR") == 0) {
+                $$->char_val = $1->char_val | $3->char_val;
+            } else {
+                $$->int_val = $1->int_val | $3->int_val;
+            }
+        }
+    }
+    | expression AND_OP expression          {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for && operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val && $3->int_val;
+        }
+    }
+    | expression OR_OP expression           {
+        // type check
+        if (!isCompatible($1->id, $3->id)) {
+            yyerror("Incompatible type for || operator.\n");
+        }
+        $$ = createASTNode("INT", 3, $1, $2, $3);
+        $$->isConst = $1->isConst && $3->isConst;
+        // parse value if isConst
+        if ($$->isConst == 1) {
+            $$->int_val = $1->int_val || $3->int_val;
+        }
+    }
+    | LPAREN expression RPAREN              {
+        $$ = createASTNode($2->id, 3, $1, $2, $3);
+        $$->isConst = $2->isConst;
+        if ($$->isConst == 1) {
+            if (strcmp($1->id, "CHAR") == 0) {
+                $$->char_val = $1->char_val;
+            } else {
+                $$->int_val = $1->int_val;
+            }
+        }
+    }
+    | IDENTIFIER                            {
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // set expression type
+        $$ = createASTNode(entry->type, 1, $1);
+        // set expression value
+        switch (entry->constType) {
+            case NON_CONST:
+                $$->isConst = 0;
+                break;
+            case CONST_CHAR:
+                $$->char_val = entry->constValue.charVal;
+                break;
+            case CONST_INT:
+                $$->int_val = entry->constValue.intVal;
+                break;
+            case CONST_STRING:
+                $$->str_val = entry->constValue.strVal;
+                break;
+            default:
+                break;
+        }
+    }
+    | array                                 {
+        // in fact, this is ONE ELEMENT of the array
+        // check if the identifier is defined
+        SymbolTableEntry* entry = findSymbol($1->id);
+        if (entry == NULL) {
+            yyerror("Undefined identifier %s.\n", $1->id);
+        }
+        // set expression type
+        $$ = createASTNode(entry->type, 1, $1);
+        // we currently do not do optimization for array elements even if it is const
+        $$->isConst = 0;
+    }
+    | func_call                             {
+        $$ = createASTNode($1->id, 1, $1);
+        $$->isConst = 0;
+    }
+    | INT_CONSTANT                          {
+        $$ = createASTNode("INT", 1, $1);
+        $$->int_val = $1->int_val;
+    }
+    | CHAR_CONSTANT                         {
+        $$ = createASTNode("CHAR", 1, $1);
+        $$->char_val = $1->char_val;
+    }
+    | STRING_LITERAL                        {
+        $$ = createASTNode("STRING", 1, $1);
+        $$->str_val = $1->str_val;
+    }
     ;
     
 
