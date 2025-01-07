@@ -21,6 +21,9 @@ typedef struct ASTNode {
         char* str_val;
     }; // the value of CONSTANTS
     int isConst; // default = 1
+    // the res symbol for intermediate code. for most nodes, it is NULL and have no use.
+    // for expressions, this will be res for TACs and will be parsed to its parent.
+    char* symbol;
 } ASTNode;
 
 /* create an AST node for identifiers or keywords.

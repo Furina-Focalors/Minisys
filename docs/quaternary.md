@@ -11,9 +11,11 @@
 |goto|||label|goto label;
 |[]=|index|val|arr|arr[index] = val;
 |=[]|arr|index|res|res = arr[index];
-|param|var|||仅在函数调用时，将变量var作为参数入栈
+|param|arg|||仅在函数调用时，将变量var作为参数入栈
 |call|func||ret|调用函数func，读取栈顶变量作为参数传入，并将返回值存入ret（如果ret为空表示没有返回值）
-|return|val||label|将val作为返回值返回给label处，如果val为空，不返回任何值。
+|return|||val|将val作为返回值返回，如果val为空，不返回任何值。
+|alloc alloc_global|type|size|id|声明名称为id的变量，即为变量id分配大小为size的内存空间
+|label|name| | |为**下一行**创建名称为name的label
 
 ## 中间代码和高级语言的转化关系样例
 |C code|Intermediate Code(TAC form)|IC(Quaternary form)
@@ -27,6 +29,7 @@
 |y = a \* b;|t1 = a \* b; <br>y = t1;|(\*,a,b,t1);<br>(=,t1, ,y);
 |func(a, b, c);|param a; <br>param b; <br>param c; <br>call func;|(param,a, , );<br>(param,b, , );<br>(param,c, , );<br>(call,func, , );
 |if (x == y) {a = b;...}|100: t1 = x==y;<br>101: if (t1) goto 0;<br>102: goto 0;<br>103: a = b;|(==,x,y,t1);<br>(ifGoto,t1, ,0);<br>(goto, , ,0);<br>(=,b, ,a);
+|if (x==y) a=b; else a=c;|100: t1 = x==y;<br>101: if (g1) goto 0(103);<br>102: goto 0(104);<br>103: a = b;<br>104: a = c;|(==,x,y,t1);<br>(ifGoto,t1, ,0);<br>(goto, , ,0);<br>(=,b, ,a);<br>(=,c, ,a);
 |while (x == y) {a = b;...}|100: t1 = x==y;<br>101: if (t1) goto 0;<br>102: goto 0;<br>103: a = b;<br>...<br>n: goto 100;|(==,x,y,t1);<br>(ifGoto,t1, ,0);<br>(goto, , ,0);<br>(=,b, ,a);<br>...<br>(goto, , ,100);
 |for (i=0;i<2;++i) {a = b;...}|100: i = 0;<br>101: t1 = i<2<br>102: if (t1) goto 0;<br>103: goto 0;<br>104: a = b;<br>...<br>n: i = i + 1;<br>n+1: goto 101;|(=,0, ,i);<br>(<,i,2,t1);<br>(ifGoto,t1, ,0);<br>(goto, , ,0);<br>(=,b, ,a);<br>...<br>(+,i,1,i);<br>(goto, , ,101);
 

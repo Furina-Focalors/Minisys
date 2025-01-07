@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "symbol_table.h"
+#include "tac.h"
 
 extern FILE *yyin;
 extern int yyparse();
+extern struct TACList* tacHead;
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -27,6 +29,8 @@ int main(int argc, char *argv[]) {
 
     //printSymbolTable(scopeStack[0]);
     destroySymbolTable(scopeStack[0]);
+
+    printTAC();
 
     fclose(yyin);
     return 0;

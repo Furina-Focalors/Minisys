@@ -28,6 +28,28 @@ typedef struct FuncParam {
     int isArray;
 } FuncParam;
 
+// enum ArrayElementType {
+//     ID,
+//     CHARVAL,
+//     INTVAL
+// };
+
+// // used to parse initial values of array
+// typedef struct ArrayElement {
+//     // an element in the initialization table can either be
+//     // an id, a character or an integer.
+//     union {
+//         char* id;
+//         char charVal;
+//         int intVal;
+//     };
+//     enum ArrayElementType elementType;
+// } ArrayElement;
+
+// ArrayElement* createIdElement(char* id);
+// ArrayElement* createCharElement(char c);
+// ArrayElement* createIntElement(int i);
+
 typedef struct SymbolTableEntry {
     char* id;
     /* type supports INT, CHAR, SHORT and VOID.

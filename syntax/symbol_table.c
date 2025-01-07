@@ -306,120 +306,29 @@ void printScopeStack() {
 
 FuncParam* createFuncParam(char* type, char* id, unsigned int size, int isArray) {
     FuncParam* param = (FuncParam*)malloc(sizeof(FuncParam));
-    param->id = strdup(id);  // ���� id ��һ���ַ�����ʹ�� strdup ����
+    param->id = strdup(id);
     param->type = strdup(type);
     param->size = size;
     param->isArray = isArray;
     return param;
 }
 
-// int main() {
-//     SymbolTable* symbolTable = createSymbolTable(NULL);
-//     if (!symbolTable) {
-//         return 1;
-//     }
-//     scopeStack[scopeStackTop++] = symbolTable;
+// ArrayElement* createIdElement(char* id) {
+//     ArrayElement* element = (ArrayElement*)malloc(sizeof(ArrayElement));
+//     element->elementType = ID;
+//     element->id = id;
+//     return element;
+// }
 
-//     // union ConstValue val1,val2,val3;
-//     // val1.intVal = 1013;
-//     // val2.charVal = 'f';
-//     // val3.strVal = "iloveyou";
-
-//     // printf("creating entries...\n");
-//     // SymbolTableEntry* test1 = createConstTableEntry(CONST_INT, val1);
-//     // SymbolTableEntry* test2 = createConstTableEntry(CONST_CHAR, val2);
-//     // SymbolTableEntry* test3 = createConstTableEntry(CONST_STRING, val3);
-//     // printSymbolTableEntry(test1);
-//     // printSymbolTableEntry(test2);
-//     // printSymbolTableEntry(test3);
-
-//     // printf("inserting entries...\n");
-//     // insertSymbol(symbolTable, test1);
-//     // insertSymbol(symbolTable, test2);
-//     // insertSymbol(symbolTable, test3);
-//     // // try to insert test3 again
-//     // insertSymbol(symbolTable, test3);
-
-//     // printf("table content:\n");
-//     // printSymbolTable(symbolTable);
-
-//     char* paramsType1[] = {"int", "char"};
-//     char* params1[] = {"a", "b"};
-//     SymbolTableEntry* varEntry = createSymbolTableEntry("x", "int", 4, 1, 0, 0, 0, 0, 0, NULL, NULL);
-//     insertSymbol(symbolTable, varEntry);
-
-//     SymbolTableEntry* funcEntry = createSymbolTableEntry("foo", "void", 0, 1, 0, 1, 1, 32, 2, paramsType1, params1);
-//     insertSymbol(symbolTable, funcEntry);
-
-
-//     printf("Searching for 'x':\n");
-//     SymbolTableEntry* foundVar = findSymbol("x");
-//     printSymbolTableEntry(foundVar);
-
-
-//     printf("\nSearching for 'foo':\n");
-//     SymbolTableEntry* foundFunc = findSymbol("foo");
-//     printSymbolTableEntry(foundFunc);
-
-
-//     printf("creating local scopes...\n");
-//     SymbolTable* subScope1 = createSymbolTable(symbolTable);
-//     if (!subScope1) return 1;
-//     SymbolTableEntry* subVar1 = createSymbolTableEntry("y", "short", 2, 1, 0, 0, 0, 0, 0, NULL, NULL);
-//     insertSymbol(subScope1, subVar1);
-
-//     SymbolTable* subScope2 = createSymbolTable(symbolTable);
-//     if (!subScope2) return 1;
-//     SymbolTableEntry* subVar2 = createSymbolTableEntry("z", "char", 1, 1, 0, 0, 0, 0, 0, NULL, NULL);
-//     insertSymbol(subScope2, subVar2);
-
-
-//     printf("check scope:\n");
-//     printf("search for 'x' in subScope1:\n");
-//     SymbolTableEntry* test1 = findSymbol("x");
-//     printSymbolTableEntry(test1);
-
-//     printf("search for 'y' in subScope1:\n");
-//     SymbolTableEntry* test2 = findSymbol("y");
-//     printSymbolTableEntry(test2);
-
-//     printf("search for 'z' in subScope1:\n");
-//     SymbolTableEntry* test3 = findSymbol("z");
-//     printSymbolTableEntry(test3);
-
-//     printf("content of the tables:\n");
-//     printSymbolTable(symbolTable);
-//     printSymbolTable(subScope1);
-//     printSymbolTable(subScope2);
-
-
-//     printf("\nDeleting 'x'...\n");
-//     deleteSymbol(symbolTable, "x");
-
-//     printf("\nSearching for 'x' after deletion:\n");
-//     SymbolTableEntry* deletedVar = findSymbol("x");
-//     if (deletedVar) {
-//         printSymbolTableEntry(deletedVar);
-//     } else {
-//         printf("Symbol 'x' not found.\n");
-//     }
-
-
-//     printf("\nDeleting 'foo'...\n");
-//     deleteSymbol(symbolTable, "foo");
-
-//     printf("\nSearching for 'foo' after deletion:\n");
-//     SymbolTableEntry* deletedFunc = findSymbol("foo");
-//     if (deletedFunc) {
-//         printSymbolTableEntry(deletedFunc);
-//     } else {
-//         printf("Symbol 'foo' not found.\n");
-//     }
-
-
-//     printf("\nDestroying symbol table...\n");
-//     destroySymbolTable(symbolTable);
-//     printf("Complete.\n");
-
-//     return 0;
+// ArrayElement* createCharElement(char c) {
+//     ArrayElement* element = (ArrayElement*)malloc(sizeof(ArrayElement));
+//     element->elementType = CHARVAL;
+//     element->charVal = c;
+//     return element;
+// }
+// ArrayElement* createIntElement(int i) {
+//     ArrayElement* element = (ArrayElement*)malloc(sizeof(ArrayElement));
+//     element->elementType = INTVAL;
+//     element->intVal = i;
+//     return element;
 // }

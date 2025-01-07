@@ -10,6 +10,7 @@ ASTNode* createASTNode(char* id, int childNum, ...) {
     cur->id = id;
     cur->childNum = childNum;
     cur->isConst = 1;
+    cur->symbol = NULL;
     for (int i=0;i<MAX_CHILD_NUM;++i) {
         cur->children[i] = NULL;
     }
@@ -37,6 +38,7 @@ ASTNode* createASTNodeForInt(int val) {
     cur->id = "INT_CONSTANT";
     cur->int_val = val;
     cur->isConst = 1;
+    cur->symbol = NULL;
     cur->childNum = 0;
     for (int i=0;i<MAX_CHILD_NUM;++i) {
         cur->children[i] = NULL;
@@ -55,6 +57,7 @@ ASTNode* createASTNodeForChar(char val) {
     cur->id = "CHAR_CONSTANT";
     cur->char_val = val;
     cur->isConst = 1;
+    cur->symbol = NULL;
     cur->childNum = 0;
     for (int i=0;i<MAX_CHILD_NUM;++i) {
         cur->children[i] = NULL;
@@ -73,6 +76,7 @@ ASTNode* createASTNodeForStr(char* val) {
     cur->id = "STRING_LITERAL";
     cur->str_val = strdup(val);
     cur->isConst = 1;
+    cur->symbol = NULL;
     cur->childNum = 0;
     for (int i=0;i<MAX_CHILD_NUM;++i) {
         cur->children[i] = NULL;
