@@ -945,7 +945,8 @@ for_inc_end:
         // cut off and cache the increment statements. They will be inserted at the end of for block
         TACList* temp = forInc;
         forInc = forInc->next;
-        temp->next = NULL;
+        tacTail = temp;
+        tacTail->next = NULL;
     }
     ;
 
