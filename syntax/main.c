@@ -49,9 +49,12 @@ int main(int argc, char *argv[]) {
             fprintf(icOutput,"parameters: ");
             for (int j=0;j<scopeStack[0]->table[i]->entry->paramNum;++j) {
                 if (scopeStack[0]->table[i]->entry->params[j]->isArray == 0) {
-                    fprintf(icOutput,"%s(%s), ", scopeStack[0]->table[i]->entry->params[j]->id, scopeStack[0]->table[i]->entry->params[j]->type);
+                    fprintf(icOutput,"%s(%s)", scopeStack[0]->table[i]->entry->params[j]->id, scopeStack[0]->table[i]->entry->params[j]->type);
                 } else {
-                    fprintf(icOutput,"%s(%s[]), ", scopeStack[0]->table[i]->entry->params[j]->id, scopeStack[0]->table[i]->entry->params[j]->type);
+                    fprintf(icOutput,"%s(%s[])", scopeStack[0]->table[i]->entry->params[j]->id, scopeStack[0]->table[i]->entry->params[j]->type);
+                }
+                if (j<scopeStack[0]->table[i]->entry->paramNum-1) {
+                    fprintf(icOutput, ",");
                 }
             }
             fprintf(icOutput, "\n\n");
