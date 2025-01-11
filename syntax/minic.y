@@ -322,6 +322,10 @@ declaration:
         // set isDefined
         SymbolTableEntry* entry = findSymbol($1->id);
         entry->isDefined = 1;
+        // end label of func.
+        $$ = NULL;
+        TAC* code = createTAC("label", "end_func", NULL, NULL);
+        appendTAC(code);
     }
     ;
 
@@ -438,7 +442,11 @@ func_head:
         $$ = createASTNode($2->id, 5, $1, $2, $3, $4, $5);
 
         // cache the tac. if in function definition, add to tac, otherwise delete itself
-        tempTAC = createTAC("label", $2->id, NULL, NULL);
+        char* funcLabel = (char*)malloc((strlen($2->id)+6)*sizeof(char));
+        char* prefix = "func_";
+        strcpy(funcLabel, prefix);
+        strcat(funcLabel, $2->id);
+        tempTAC = createTAC("label", funcLabel, NULL, NULL);
     }
     ;
 
