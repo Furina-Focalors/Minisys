@@ -489,7 +489,7 @@ array_declaration:
         }
         // const check
         if ($3->isConst == 0) {
-            yyerror("Array size should be non-const.\n");
+            yyerror("Array size should be const.\n");
         }
         $$ = createASTNode($1->id, 4, $1, $2, $3, $4);
         // during declaration, this will be the size of an array.
@@ -902,8 +902,6 @@ for_stmt:
         // this label is AFTER the loop statement(goto condition)
         TAC* code2 = createTAC("label", label, NULL, NULL);
 
-        // condition
-        char* conditionLabel = bpBuf[bpNum-2-breakContinueCnt]->tac->arg1;
         // backpatch the break and continue statements
         for (int i=0;i<breakContinueCnt;++i) {
             TACList* code = bpBuf[--bpNum];
@@ -912,7 +910,7 @@ for_stmt:
                 code->tac->res = label;
             } else if (strcmp(code->tac->arg1, "continue") == 0) {
                 code->tac->arg1 = NULL;
-                code->tac->res = conditionLabel;
+                code->tac->res = forInc->tac->arg1;
             }
         }
         // current top: the goto stmt when condition is false
@@ -950,6 +948,8 @@ for_inc_start:
         // so we will delete it from code at for_inc_end, and put it at the end of for block.
         // note that forInc is now the statement BEFORE increment
         forInc = tacTail;
+        TAC* code = createTAC("label", generateLabel(), NULL, NULL);
+        appendTAC(code);
     }
     ;
 

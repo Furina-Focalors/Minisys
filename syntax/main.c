@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     fclose(yyin);
 
     generateIndex();
-    printTAC();
+    //printTAC();
 
     // write to file
     char* filename = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
