@@ -31,6 +31,9 @@ int main(int argc, char *argv[]) {
 
     fclose(yyin);
 
+    generateIndex();
+    printTAC();
+
     // write to file
     char* filename = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
     getFilename(argv[1], filename);
@@ -85,8 +88,6 @@ int main(int argc, char *argv[]) {
 
     //printSymbolTable(scopeStack[0]);
     destroySymbolTable(scopeStack[0]);
-
-    //printTAC();
 
     return 0;
 }

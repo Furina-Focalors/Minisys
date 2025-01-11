@@ -17,6 +17,7 @@ TAC* createTAC(char* op, char* arg1, char* arg2, char* res) {
     tac->arg1 = arg1;
     tac->arg2 = arg2;
     tac->res = res;
+    tac->index = 0;
     return tac;
 }
 
@@ -40,8 +41,7 @@ void appendTAC(TAC* tac) {
 void printTAC() {
     TACList* temp = tacHead;
     while (temp) {
-        printf("(%s,%s,%s,%s)\n",temp->tac->op, temp->tac->arg1, temp->tac->arg2, temp->tac->res);
-        //printf("%s = %s %s %s\n", temp->tac->res, temp->tac->arg1, temp->tac->op, temp->tac->arg2);
+        printf("%d: (%s,%s,%s,%s)\n", temp->tac->index, temp->tac->op, temp->tac->arg1, temp->tac->arg2, temp->tac->res);
         temp = temp->next;
     }
 }
@@ -74,4 +74,14 @@ int countDigits(int num) {
         ++count;
     }
     return count;
+}
+
+int generateIndex() {
+    TACList* cur = tacHead;
+    int num = 0;
+    while(cur) {
+        cur->tac->index = num++;
+        cur = cur->next;
+    }
+    return num;
 }

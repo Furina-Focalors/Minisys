@@ -9,6 +9,8 @@ typedef struct TAC {
     char* arg1;
     char* arg2;
     char* res;
+    // we currently assign the index after genereting ALL the intermediate code
+    int index;
 } TAC;
 
 typedef struct TACList {
@@ -29,6 +31,9 @@ void printTAC();
 char* charToString(char c);
 
 char* generateLabel();
+
+// returns the number of TACs
+int generateIndex();
 
 int countDigits(int num);
 
