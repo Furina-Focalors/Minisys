@@ -569,6 +569,12 @@ func_call:
         if (entry == NULL) {
             yyerror("Undefined identifier %s.\n", $1->id);
         }
+        // check the num of params
+        if (paramNum < entry->paramNum) {
+            yyerror("Too few arguments for function \"%s\"", $1->id);
+        } else if (paramNum > entry->paramNum) {
+            yyerror("Too many arguments for function \"%s\"", $1->id);
+        }
         // check the type of params
         for (int i=0;i<paramNum;++i) {
             if (!isCompatible(paramsBuf[i]->type, entry->params[i]->type)) {
