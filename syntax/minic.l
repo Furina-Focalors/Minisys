@@ -23,7 +23,7 @@ H           0[xX][a-fA-F0-9]+
 "return"		            { yylval.node=createASTNode("RETURN",0); return(RETURN); }
 "void"			            { yylval.node=createASTNode("VOID",0); return(VOID); }
 "while"			            { yylval.node=createASTNode("WHILE",0); return(WHILE); }
-{H}                         { yylval.node=createASTNodeForInt(atoi(yytext)); return(INT_CONSTANT); }
+{H}                         { yylval.node=createASTNodeForInt(strtol(yytext, NULL, 16)); return(INT_CONSTANT); }
 {L}({L}|{D})*		        { yylval.node=createASTNode(_strdup(yytext),0); return(IDENTIFIER); }
 0|([1-9]{D}*)				{ yylval.node=createASTNodeForInt(atoi(yytext)); return(INT_CONSTANT); }
 '\\.'|'[^\\']'              { yylval.node=createASTNodeForChar(yytext[1]); return(CHAR_CONSTANT); }
