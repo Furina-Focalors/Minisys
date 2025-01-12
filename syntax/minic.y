@@ -587,7 +587,7 @@ func_call:
         // reset buffer
         paramNum = 0;
         // parse symbol
-        $$->symbol = $1->symbol;
+        $$->symbol = $1->id;
     }
     ;
 
