@@ -603,7 +603,7 @@ arg_list:
         // we currently consider all arguments non-const
         $$->isConst = 0;
         // param id;
-        TAC* code = createTAC("param", $3->id, NULL, NULL);
+        TAC* code = createTAC("param", $3->symbol, NULL, NULL);
         appendTAC(code);
     }
     | expression                    {
@@ -612,7 +612,7 @@ arg_list:
         // we currently consider all arguments non-const
         $$->isConst = 0;
         // param id;
-        TAC* code = createTAC("param", $1->id, NULL, NULL);
+        TAC* code = createTAC("param", $1->symbol, NULL, NULL);
         appendTAC(code);
     }
     ;
