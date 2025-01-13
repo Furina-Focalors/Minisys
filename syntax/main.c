@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "symbol_table.h"
 #include "tac.h"
+#include "asm.h"
 
 extern FILE *yyin;
 extern int yyparse();
@@ -32,7 +33,19 @@ int main(int argc, char *argv[]) {
     fclose(yyin);
 
     generateIndex();
-    //printTAC();
+    // printTAC();
+
+    // generate assembly code
+    AsmContainer* container = (AsmContainer*)malloc(sizeof(AsmContainer));
+    initAsmContainer(container);
+    initAsm();
+    calcFrameInfo(container);
+    newAsm(container, ".data");
+    initializeGlobalVars(container);
+    newAsm(container, ".text");
+    generateASM(container);
+    char* assembly = toAssembly(container);
+    // printAsm(container);
 
     // write to file
     char* filename = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
@@ -86,8 +99,118 @@ int main(int argc, char *argv[]) {
 
     fclose(icOutput);
 
-    //printSymbolTable(scopeStack[0]);
+    // printSymbolTable(scopeStack[0]);
     destroySymbolTable(scopeStack[0]);
+
+    // generate assembly code
+    char* asmFilename = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
+    getFilename(argv[1], asmFilename);
+    strcat(asmFilename, ".asm");
+    FILE* asmOutput = fopen(asmFilename, "w");
+    if (asmOutput == NULL) {
+        perror("Error opening file.\n");
+        return 1;
+    }
+
+    fprintf(asmOutput, "%s\n", assembly);
+
+    fclose(asmOutput);
+
+
+
+
+
+    // char* assembly = "main:\n\taddi	ra, ra, 0\n\tadd     t2, t0, t1   # t2 = t0 + t1\n\tadd     t3, t2, t1   # t3 = t2 + t1\n\tadd     t4, t3, t2   # t4 = t3 + t2\n\tadd     t5, t4, t3   # t5 = t4 + t3\n\tadd     t6, t5, t4   # t6 = t5 + t4\n\taddi	t0, t5, 0\n\taddi	t1, t6, 0\n\tjalr x0, ra,0\n";
+    // char* showAssembly = "a:\n"
+    //             "        .zero   4\n"
+    //             "Fei_Bo:\n"
+    //             "        addi    sp,sp,-48\n"
+    //             "        sw      ra,44(sp)\n"
+    //             "        sw      s0,40(sp)\n"
+    //             "        addi    s0,sp,48\n"
+    //             "        sw      a0,-36(s0)\n"
+    //             "        addi    a5,a5,1\n"
+    //             "        sw      a5,-20(s0)\n"
+    //             "        addi    a5,a5,1\n"
+    //             "        sw      a5,-24(s0)\n"
+    //             "        addi    a5,a5,1\n"
+    //             "        sw      a5,-28(s0)\n"
+    //             "        lw      a4,-36(s0)\n"
+    //             "        addi    a5,a5,2\n"
+    //             "        ble     a4,a5,label2\n"
+    //             "        sw      zero,-32(s0)\n"
+    //             "        sw      zero,-32(s0)\n"
+    //             "        jal     label3\n"
+    //             "label4:\n"
+    //             "        lw      a4,-20(s0)\n"
+    //             "        lw      a5,-24(s0)\n"
+    //             "        add     a5,a4,a5\n"
+    //             "        sw      a5,-28(s0)\n"
+    //             "        lw      a5,-24(s0)\n"
+    //             "        sw      a5,-20(s0)\n"
+    //             "        lw      a5,-28(s0)\n"
+    //             "        sw      a5,-24(s0)\n"
+    //             "        lw      a5,-32(s0)\n"
+    //             "        addi    a5,a5,1\n"
+    //             "        sw      a5,-32(s0)\n"
+    //             "label3:\n"
+    //             "        lw      a5,-36(s0)\n"
+    //             "        addi    a5,a5,-2\n"
+    //             "        lw      a4,-32(s0)\n"
+    //             "        blt     a4,a5,label4\n"
+    //             "        lw      a5,-28(s0)\n"
+    //             "        j       label5\n"
+    //             "label2:\n"
+    //             "        lw      a5,-28(s0)\n"
+    //             "label5:\n"
+    //             "        mv      a0,a5\n"
+    //             "        lw      ra,44(sp)\n"
+    //             "        lw      s0,40(sp)\n"
+    //             "        addi    sp,sp,48\n"
+    //             "        jr      ra\n"
+    //             "main:\n"
+    //             "        addi    sp,sp,-32\n"
+    //             "        sw      ra,28(sp)\n"
+    //             "        sw      s0,24(sp)\n"
+    //             "        addi    s0,sp,32\n"
+    //             "        sw      zero,-20(s0)\n"
+    //             "        lw      a0,-20(s0)\n"
+    //             "        call    Fei_Bo\n"
+    //             "        sw      a0,-24(s0)\n"
+    //             "        addi    a5,a5,0\n"
+    //             "        mv      a0,a5\n"
+    //             "        lw      ra,28(sp)\n"
+    //             "        lw      s0,24(sp)\n"
+    //             "        addi    sp,sp,32\n"
+    //             "        jr      ra\n";
+
+    // char* asmFilename = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
+    // getFilename(argv[1], asmFilename);
+    // strcat(asmFilename, ".asm");
+    // FILE* asmOutput = fopen(asmFilename, "w");
+    // if (asmOutput == NULL) {
+    //     perror("Error opening file.\n");
+    //     return 1;
+    // }
+
+    // fprintf(asmOutput, "%s", assembly);
+
+    // fclose(asmOutput);
+
+
+    // char* asmShow = (char*)malloc((strlen(argv[1])+4)*sizeof(char));
+    // getFilename(argv[1], asmShow);
+    // strcat(asmShow, "_.asm");
+    // FILE* asmShowOutput = fopen(asmShow, "w");
+    // if (asmShowOutput == NULL) {
+    //     perror("Error opening file.\n");
+    //     return 1;
+    // }
+
+    // fprintf(asmShowOutput, "%s", showAssembly);
+
+    // fclose(asmShowOutput);
+
 
     return 0;
 }
